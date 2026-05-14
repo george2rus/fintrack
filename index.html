@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#f4f3ef;--surface:#fff;--surface2:#f9f8f5;--border:#e2e0d8;--border2:#ccc9be;
@@ -371,10 +372,10 @@ const DEFAULT_CATS=[
 ];
 
 let cm=4,cy=2026,curEFType='spend',activeTab='master';
-let cats=JSON.parse(localStorage.getItem('ft_cats')||'null')||JSON.parse(JSON.stringify(DEFAULT_CATS));
-let entries=JSON.parse(localStorage.getItem('ft_e5')||'null');
-let cellStyles=JSON.parse(localStorage.getItem('ft_cs5')||'{}');
-let history=JSON.parse(localStorage.getItem('ft_hist')||'[]'); // action log
+let cats=JSON.parse(JSON.stringify(DEFAULT_CATS)); // overwritten by loadAll()
+let entries=[]; // loaded from Supabase
+let cellStyles={}; // loaded from Supabase
+let history=[]; // loaded from Supabase
 let undoStack=[]; // snapshots of entries for undo
 let redoStack=[]; // snapshots for redo
 let selEntries=new Set();
@@ -434,12 +435,127 @@ const MAY=[
   {type:'spend',category:'Food & shop',amount:150,date:'2026-05-21',status:'forecast',note:'Food n Shop'},
   {type:'spend',category:'Food & shop',amount:100,date:'2026-05-28',status:'forecast',note:'Food n Shop'},
 ];
-if(!entries){entries=MAY.map((e,i)=>({...e,id:i+1}));saveE();}
+// ── Supabase ──
+const SUPA_URL='https://qwcattnsvoyvfzlnmjgk.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3Y2F0dG5zdm95dmZ6bG5tamdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NDk0NzEsImV4cCI6MjA5NDMyNTQ3MX0.28fWTTolLnULqXVdyyahfcywdmXORO_pkRoVPHce06Q';
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY);
 
-function saveE(){localStorage.setItem('ft_e5',JSON.stringify(entries));}
-function saveC(){localStorage.setItem('ft_cats',JSON.stringify(cats));}
-function saveCS(){localStorage.setItem('ft_cs5',JSON.stringify(cellStyles));}
-function saveHist(){localStorage.setItem('ft_hist',JSON.stringify(history));}
+// ── Loading overlay ──
+function showLoading(msg='Loading…'){
+  let el=document.getElementById('loadOverlay');
+  if(!el){
+    el=document.createElement('div');
+    el.id='loadOverlay';
+    el.style.cssText='position:fixed;inset:0;background:rgba(255,255,255,.88);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:DM Mono,monospace;font-size:14px;color:#6b6960;gap:12px';
+    el.innerHTML='<div style="width:32px;height:32px;border:3px solid #e2e0d8;border-top-color:#1d4e89;border-radius:50%;animation:spin 0.7s linear infinite"></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div id="loadMsg"></div>';
+    document.body.appendChild(el);
+  }
+  document.getElementById('loadMsg').textContent=msg;
+  el.style.display='flex';
+}
+function hideLoading(){const el=document.getElementById('loadOverlay');if(el)el.style.display='none';}
+
+// ── Entries ──
+async function saveE(changedEntry){
+  // if a specific entry is passed, upsert just that one; else upsert all
+  const toSave=changedEntry?[changedEntry]:entries;
+  const rows=toSave.map(e=>({id:Math.round(e.id),type:e.type,category:e.category,amount:e.amount,date:e.date,status:e.status,note:e.note||''}));
+  const {error}=await supa.from('entries').upsert(rows,{onConflict:'id'});
+  if(error)console.error('saveE error:',error);
+}
+async function deleteEntryDB(id){
+  const {error}=await supa.from('entries').delete().eq('id',Math.round(id));
+  if(error)console.error('deleteEntryDB error:',error);
+}
+
+// ── Cats ──
+async function saveC(){
+  const rows=cats.map((c,i)=>({id:c.id,name:c.name,type:c.type,scope:c.scope,colour:c.colour||null,sort_order:i}));
+  const {error}=await supa.from('cats').upsert(rows,{onConflict:'id'});
+  if(error)console.error('saveC error:',error);
+}
+async function deleteCatDB(id){
+  const {error}=await supa.from('cats').delete().eq('id',id);
+  if(error)console.error('deleteCatDB error:',error);
+}
+
+// ── Cell styles ──
+async function saveCS(){
+  // rebuild the whole cell_styles table from current state
+  // delete all then re-insert (simpler than tracking individual changes)
+  await supa.from('cell_styles').delete().neq('entry_id',0);
+  const rows=Object.entries(cellStyles).map(([k,v])=>({entry_id:Math.round(k),styles:v}));
+  if(rows.length){
+    const {error}=await supa.from('cell_styles').upsert(rows,{onConflict:'entry_id'});
+    if(error)console.error('saveCS error:',error);
+  }
+}
+async function saveOneCS(id){
+  if(cellStyles[id]){
+    const {error}=await supa.from('cell_styles').upsert({entry_id:Math.round(id),styles:cellStyles[id]},{onConflict:'entry_id'});
+    if(error)console.error('saveOneCS error:',error);
+  } else {
+    await supa.from('cell_styles').delete().eq('entry_id',Math.round(id));
+  }
+}
+
+// ── History ──
+async function saveHist(record){
+  // record is the latest history entry to insert
+  if(!record)return;
+  const {error}=await supa.from('history').insert({
+    ts:record.ts,action:record.action,category:record.category,
+    amount:record.amount,note:record.note,month:record.month,extra:record.extra||''
+  });
+  if(error)console.error('saveHist error:',error);
+}
+async function clearHistDB(){
+  const {error}=await supa.from('history').delete().neq('id',0);
+  if(error)console.error('clearHistDB error:',error);
+}
+
+// ── Load everything ──
+async function loadAll(){
+  showLoading('Connecting to database…');
+
+  // load entries
+  const {data:eData,error:eErr}=await supa.from('entries').select('*');
+  if(eErr)console.error('load entries error:',eErr);
+  if(eData&&eData.length>0){
+    entries=eData.map(r=>({id:r.id,type:r.type,category:r.category,amount:parseFloat(r.amount),date:r.date,status:r.status,note:r.note||''}));
+  } else {
+    showLoading('First run — seeding entries…');
+    entries=MAY.map((e,i)=>({...e,id:i+1}));
+    await saveE();
+  }
+
+  // load cats
+  const {data:cData,error:cErr}=await supa.from('cats').select('*').order('sort_order',{ascending:true});
+  if(cErr)console.error('load cats error:',cErr);
+  if(cData&&cData.length>0){
+    cats=cData.map(r=>({id:r.id,name:r.name,type:r.type,scope:r.scope,colour:r.colour||null}));
+  } else {
+    // first run — push default cats
+    showLoading('First run — seeding categories…');
+    await saveC();
+  }
+
+  // load cell styles
+  const {data:csData,error:csErr}=await supa.from('cell_styles').select('*');
+  if(csErr)console.error('load cell_styles error:',csErr);
+  cellStyles={};
+  if(csData){csData.forEach(r=>{cellStyles[r.entry_id]=r.styles;});}
+
+  // load history
+  const {data:hData,error:hErr}=await supa.from('history').select('*').order('ts',{ascending:false}).limit(500);
+  if(hErr)console.error('load history error:',hErr);
+  history=[];
+  if(hData){
+    history=hData.map(r=>({ts:r.ts,action:r.action,category:r.category,amount:r.amount,note:r.note||'',month:r.month,extra:r.extra||''}));
+  }
+
+  hideLoading();
+}
 function fmt(n){return'£'+Number(n).toFixed(2);}
 function fmtR(n){return'£'+Math.round(n);}
 function gc(name){return cats.find(c=>c.name===name);}
@@ -453,17 +569,17 @@ function me(){return entries.filter(e=>{const d=new Date(e.date+'T00:00:00');ret
 // ── Undo / Redo ──
 function snapshot(){return JSON.parse(JSON.stringify(entries));}
 function pushUndo(){undoStack.push(snapshot());if(undoStack.length>50)undoStack.shift();redoStack=[];updateUndoUI();}
-function undo(){
+async function undo(){
   if(!undoStack.length)return;
   redoStack.push(snapshot());
   entries=undoStack.pop();
-  saveE();renderAll();updateUndoUI();
+  await saveE();renderAll();updateUndoUI();
 }
-function redo(){
+async function redo(){
   if(!redoStack.length)return;
   undoStack.push(snapshot());
   entries=redoStack.pop();
-  saveE();renderAll();updateUndoUI();
+  await saveE();renderAll();updateUndoUI();
 }
 function updateUndoUI(){
   document.getElementById('undoBtn').disabled=!undoStack.length;
@@ -472,19 +588,24 @@ function updateUndoUI(){
 
 // ── History log ──
 function logAction(action, entry, extra=''){
-  history.unshift({
+  const record={
     ts:new Date().toISOString(),
-    action, // 'added','edited','deleted','copied'
+    action,
     category:entry.category||'',
     amount:entry.amount||0,
     note:entry.note||'',
     month:MONTHS[cm]+' '+cy,
-    extra
-  });
+    extra:extra||''
+  };
+  history.unshift(record);
   if(history.length>500)history.pop();
-  saveHist();
+  saveHist(record); // async, fire-and-forget
 }
-function clearHist(){history=[];saveHist();renderHist();}
+async function clearHist(){
+  history=[];
+  await clearHistDB();
+  renderHist();
+}
 
 // ── Navigation ──
 function changeMonth(dir){
@@ -738,17 +859,21 @@ function openCellCtx(ev,catName,day,txId){
   }
 }
 
-function toggleCS(id,prop){
+async function toggleCS(id,prop){
   if(!cellStyles[id])cellStyles[id]={};
   cellStyles[id][prop]=!cellStyles[id][prop];
-  saveCS();renderSheet();
+  await saveOneCS(id);renderSheet();
 }
-function setCS(id,prop,val){
+async function setCS(id,prop,val){
   if(!cellStyles[id])cellStyles[id]={};
   cellStyles[id][prop]=val;
-  saveCS();renderSheet();
+  await saveOneCS(id);renderSheet();
 }
-function clearCS(id){delete cellStyles[id];saveCS();closeCtx();renderSheet();}
+async function clearCS(id){
+  delete cellStyles[id];
+  await saveOneCS(id);
+  closeCtx();renderSheet();
+}
 
 function closeCtx(){document.getElementById('ctx').classList.add('hidden');}
 document.addEventListener('click',e=>{if(!e.target.closest('.ctx'))closeCtx();});
@@ -758,14 +883,14 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo();}
 });
 
-function moveCat(catName,dir){
+async function moveCat(catName,dir){
   const idx=cats.findIndex(c=>c.name===catName);if(idx<0)return;
   const ni=idx+dir;if(ni<0||ni>=cats.length)return;
   [cats[idx],cats[ni]]=[cats[ni],cats[idx]];
-  saveC();renderSheet();
+  await saveC();renderSheet();
 }
-function setCatCol(catName,colour){
-  const c=gc(catName);if(c){c.colour=colour;saveC();renderSheet();}
+async function setCatCol(catName,colour){
+  const c=gc(catName);if(c){c.colour=colour;await saveC();renderSheet();}
 }
 
 // ── Modals ──
@@ -803,7 +928,7 @@ function buildForm(e){
   </div>`;
 }
 
-function saveEntry(id){
+async function saveEntry(id){
   const cat=document.getElementById('m-cat').value;
   const amt=parseFloat(document.getElementById('m-amt').value);
   const date=document.getElementById('m-date').value;
@@ -823,17 +948,18 @@ function saveEntry(id){
     entries.push(ne);
     logAction('added',ne);
   }
-  saveE();closeModal();renderAll();
+  await saveE();closeModal();renderAll();
   if(!document.getElementById('sidebar').classList.contains('hidden'))openCatSB(document.getElementById('sbTitle').textContent);
 }
 
-function confirmDel(id){
+async function confirmDel(id){
   const e=entries.find(x=>x.id===id);
   pushUndo();
   logAction('deleted',e||{category:'?',amount:0});
   entries=entries.filter(x=>x.id!==id);
   delete cellStyles[id];
-  saveE();saveCS();closeModal();renderAll();closeSB();
+  await deleteEntryDB(id);
+  saveCS();closeModal();renderAll();closeSB();
 }
 function closeModal(){document.getElementById('modal').classList.add('hidden');}
 
@@ -866,7 +992,7 @@ function openCatSB(catName){
 function closeSB(){document.getElementById('sidebar').classList.add('hidden');}
 
 // ── Copy previous month ──
-function copyPrevMonth(){
+async function copyPrevMonth(){
   let pm=cm-1,py=cy;if(pm<0){pm=11;py--;}
   const prev=entries.filter(e=>{const d=new Date(e.date+'T00:00:00');return d.getMonth()===pm&&d.getFullYear()===py;});
   if(!prev.length){alert('No entries found in the previous month.');return;}
@@ -874,7 +1000,7 @@ function copyPrevMonth(){
   const added=prev.map(e=>({...e,id:Date.now()+Math.random(),date:`${cy}-${String(cm+1).padStart(2,'0')}-${e.date.slice(8,10)}`,status:'forecast'}));
   entries.push(...added);
   logAction('copied',{category:'all categories',amount:added.length,note:`${added.length} entries from ${MONTHS[pm]} ${py}`});
-  saveE();renderAll();
+  await saveE();renderAll();
 }
 
 // ── Categories ──
@@ -895,25 +1021,30 @@ function renderCats(){
   });
   wrap.innerHTML=html;
 }
-function addCat(type){
+async function addCat(type){
   const id='c'+Date.now();cats.push({id,name:'New category',type,scope:'shared',colour:null});
-  saveC();renderCats();updateEFCats();
+  await saveC();renderCats();updateEFCats();
   setTimeout(()=>{const ii=document.querySelectorAll('.cni');if(ii.length)ii[ii.length-1].select();},60);
 }
-function renameCat(id,n){
+async function renameCat(id,n){
   n=n.trim();if(!n)return;
   const c=cats.find(x=>x.id===id);if(!c||c.name===n)return;
   const old=c.name;c.name=n;
   entries.forEach(e=>{if(e.category===old)e.category=n;});
-  saveC();saveE();renderCats();updateEFCats();if(activeTab==='master')renderAll();
+  await Promise.all([saveC(),saveE()]);
+  renderCats();updateEFCats();if(activeTab==='master')renderAll();
 }
-function setScope(id,scope){
-  const c=cats.find(x=>x.id===id);if(c){c.scope=scope;saveC();renderCats();if(activeTab==='master')renderAll();}
+async function setScope(id,scope){
+  const c=cats.find(x=>x.id===id);
+  if(c){c.scope=scope;await saveC();renderCats();if(activeTab==='master')renderAll();}
 }
-function deleteCat(id){
+async function deleteCat(id){
   const c=cats.find(x=>x.id===id);if(!c)return;
   if(entries.some(e=>e.category===c.name)){alert(`"${c.name}" has entries. Remove them first.`);return;}
-  cats=cats.filter(x=>x.id!==id);saveC();renderCats();updateEFCats();
+  cats=cats.filter(x=>x.id!==id);
+  await deleteCatDB(id);
+  await saveC();
+  renderCats();updateEFCats();
 }
 function openColPicker(catId){
   document.getElementById('m-title').textContent='Row colour';
@@ -921,8 +1052,8 @@ function openColPicker(catId){
   document.getElementById('m-foot').innerHTML=`<button class="btn btn-sm" onclick="applyCol('${catId}',null)">Clear</button><div style="flex:1"></div><button class="btn btn-sm" onclick="closeModal()">Cancel</button>`;
   document.getElementById('modal').classList.remove('hidden');
 }
-function applyCol(catId,colour){
-  const c=cats.find(x=>x.id===catId);if(c){c.colour=colour;saveC();}
+async function applyCol(catId,colour){
+  const c=cats.find(x=>x.id===catId);if(c){c.colour=colour;await saveC();}
   closeModal();if(activeTab==='cats')renderCats();if(activeTab==='master')renderSheet();
 }
 
@@ -970,7 +1101,7 @@ function clearEF(){
   document.getElementById('ef-status').value='confirmed';
   document.getElementById('ef-note').value='';
 }
-function submitEF(){
+async function submitEF(){
   const cat=document.getElementById('ef-cat').value;
   const amt=parseFloat(document.getElementById('ef-amt').value);
   const date=document.getElementById('ef-date').value;
@@ -980,7 +1111,7 @@ function submitEF(){
   pushUndo();
   entries.push(ne);
   logAction('added',ne);
-  saveE();clearEF();switchTab('master');
+  await saveE();clearEF();switchTab('master');
 }
 
 // ── Split ──
@@ -1060,7 +1191,8 @@ function exportXLSX(){
 updateEFCats();
 document.getElementById('ef-date').value=new Date().toISOString().slice(0,10);
 updateUndoUI();
-renderAll();
+// Load from Supabase then render
+loadAll().then(()=>renderAll());
 </script>
 </body>
 </html>
