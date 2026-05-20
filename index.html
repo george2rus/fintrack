@@ -15,10 +15,15 @@
   --green:#2d6a4f;--green-bg:#d8f3dc;--red:#9b2226;--red-bg:#fde8e8;
   --blue:#1d4e89;--blue-bg:#dbeafe;--amber:#92400e;--amber-bg:#fef3c7;
   --today:#1d4e89;--today-bg:#dbeafe;
+  --shared-spend:#1d4e89; /* dark blue for shared spend */
+  --date-bg:#fef2cb; /* light yellow for date headers/day row */
+  --disp-bg:#e2efd9; /* light green for disposable row */
   --row-h:32px;--col-cat:130px;--col-total:58px;--col-day:34px;--hdr-h:44px;--sb-w:320px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* Calibri stack used across the spreadsheet for data cells */
+.stbl,.stbl td,.stbl th,.ca,.cn,.cc,.tc{font-family:Calibri,'Segoe UI',Arial,sans-serif!important}
 .topbar{height:50px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0;z-index:100}
 .logo{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em}
 .sep{width:1px;height:20px;background:var(--border)}
@@ -33,29 +38,33 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .btn-p{background:var(--text);color:#fff;border-color:var(--text)}.btn-p:hover{background:#333}
 .btn-danger{background:#dc2626;color:#fff;border-color:#dc2626}.btn-danger:hover{background:#b91c1c}
 .btn-sm{padding:4px 9px;font-size:12px}.btn-ghost{border-color:transparent}.btn-ghost:hover{background:var(--bg);border-color:var(--border)}
-.tabbar{height:36px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;padding:0 18px;flex-shrink:0}
-.tab{padding:5px 15px 6px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:'DM Sans',sans-serif}
-.tab.active{color:var(--text);border-bottom-color:var(--text);font-weight:500}
-.tab:hover:not(.active){color:var(--text)}
+.tabbar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:6px;flex-shrink:0}
+.tab{padding:8px 16px;font-size:13px;cursor:pointer;border:1px solid var(--border2);background:var(--surface);color:var(--text);border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:500;transition:all .12s;line-height:1.2}
+.tab:hover:not(.active){background:var(--bg);border-color:var(--text2)}
+.tab.active{background:var(--text);color:#fff;border-color:var(--text);box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .main{flex:1;display:flex;overflow:hidden}
 .sbar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
-.si{flex:1;padding:9px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:1px}
+.si{flex:1;padding:6px 12px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:0;line-height:1.15}
 .si:last-child{border-right:none}
-.sl{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.05em}
-.sv{font-family:'DM Mono',monospace;font-size:15px;font-weight:500}
+.sl{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.04em}
+.sv{font-family:'DM Mono',monospace;font-size:14px;font-weight:500}
 .pos{color:var(--green)}.neg{color:var(--red)}
+/* recent action strip */
+.recent-strip{background:var(--surface2);border-bottom:1px solid var(--border);padding:4px 14px;font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:8px;flex-shrink:0;font-family:'DM Mono',monospace}
+.recent-strip .rs-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+.recent-strip .rs-empty{color:var(--text3);font-style:italic}
 .selbar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;border-radius:8px;padding:8px 18px;font-family:'DM Mono',monospace;font-size:13px;display:flex;gap:16px;align-items:center;z-index:500;box-shadow:0 4px 20px rgba(0,0,0,.25);pointer-events:none;opacity:0;transition:opacity .15s}
 .selbar.show{opacity:1}
 .sheet-wrap{flex:1;overflow:auto}
-.stbl{border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px;min-width:max-content}
+.stbl{border-collapse:collapse;font-size:14.7px;min-width:max-content}
 
 /* header row */
 .stbl thead th{height:var(--hdr-h);background:var(--surface2);border:1px solid var(--border);padding:0 4px;white-space:nowrap;position:sticky;top:0;z-index:10;font-weight:500;color:var(--text2);font-size:13px;text-align:center;user-select:none;vertical-align:middle}
-.stbl thead th.ch{text-align:left;width:var(--col-cat);min-width:var(--col-cat);position:sticky;left:0;z-index:20;background:var(--surface2);font-size:11px}
-.stbl thead th.th{width:var(--col-total);min-width:var(--col-total);position:sticky;left:var(--col-cat);z-index:20;background:var(--surface2);font-size:11px}
-.stbl thead th.dh{width:var(--col-day);min-width:var(--col-day);line-height:1.2}
-.stbl thead th .daynum{font-size:13px;font-weight:600;display:block}
-.stbl thead th .dayname{font-size:9px;font-weight:400;color:var(--text3);display:block}
+.stbl thead th.ch{text-align:left;width:var(--col-cat);min-width:var(--col-cat);position:sticky;left:0;z-index:20;background:var(--surface2);font-size:13px}
+.stbl thead th.th{width:var(--col-total);min-width:var(--col-total);position:sticky;left:var(--col-cat);z-index:20;background:var(--surface2);font-size:13px}
+.stbl thead th.dh{width:var(--col-day);min-width:var(--col-day);line-height:1.2;background:var(--date-bg)!important}
+.stbl thead th .daynum{font-size:18.7px;font-weight:600;display:block}
+.stbl thead th .dayname{font-size:10px;font-weight:400;color:var(--text3);display:block}
 /* today highlight in header */
 .stbl thead th.today-col{background:var(--today-bg)!important;color:var(--today)!important}
 .stbl thead th.today-col .daynum{color:var(--today);font-weight:700}
@@ -64,9 +73,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .stbl thead th.month-start{border-left:3px solid #888!important}
 .stbl thead th.week-start{border-left:2px solid var(--border2)!important}
 
-.cc{position:sticky;left:0;z-index:5;border:1px solid var(--border);padding:0 7px;height:var(--row-h);white-space:nowrap;font-weight:500;font-size:12px;cursor:pointer;vertical-align:middle}
+.cc{position:sticky;left:0;z-index:5;border:1px solid var(--border);padding:0 7px;height:var(--row-h);white-space:nowrap;font-weight:500;font-size:18.7px;cursor:pointer;vertical-align:middle}
 .cc:hover{filter:brightness(.97)}
-.tc{position:sticky;left:var(--col-cat);z-index:5;border:1px solid var(--border);padding:0 6px;height:var(--row-h);text-align:right;font-weight:500;white-space:nowrap;vertical-align:middle}
+.tc{position:sticky;left:var(--col-cat);z-index:5;border:1px solid var(--border);padding:0 6px;height:var(--row-h);text-align:right;font-weight:500;white-space:nowrap;vertical-align:middle;font-size:14.7px}
 .dc{border:1px solid var(--border);height:auto;min-height:var(--row-h);vertical-align:top;padding:0;position:relative;min-width:var(--col-day)}
 .dc.month-start{border-left:3px solid #888!important}
 .dc.week-start{border-left:2px solid var(--border2)!important}
@@ -75,19 +84,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 /* row types */
 tr.ri .cc{color:var(--green);border-left:3px solid var(--green)}
 tr.ri td{background:#f6fdf8}
-tr.rs .cc{border-left:3px solid var(--border2)}
+tr.rs .cc{color:var(--shared-spend);border-left:3px solid var(--shared-spend)}
 tr.rs td{background:var(--surface)}
-tr.rp .cc{color:var(--amber);border-left:3px solid var(--amber)}
-tr.rp td{background:#fffbf0}
+tr.rp .cc{color:var(--red);border-left:3px solid var(--red)}
+tr.rp td{background:#fef5f5}
 tr.rt td{background:var(--surface2);font-weight:500}
 tr.rt .cc{color:var(--text2);border-left:3px solid var(--border2);cursor:default}
-tr.rdayrow td{background:var(--surface2);border-top:2px solid var(--border2)}
-tr.rdayrow .cc{color:var(--text2);cursor:default;border-left:3px solid var(--border2)}
+tr.rdayrow td{background:var(--date-bg);border-top:2px solid var(--border2)}
+tr.rdayrow .cc{color:var(--text2);cursor:default;border-left:3px solid var(--border2);background:var(--surface2)}
 tr.rdayrow td.today-col{background:var(--today-bg)!important;color:var(--today)!important}
-tr.rdayrow td .daynum{font-size:13px;font-weight:700;display:block}
-tr.rdayrow td .dayname{font-size:9px;color:var(--text3);display:block}
-tr.rb td{background:#eff6ff;font-weight:500}
-tr.rb .cc{color:var(--blue);border-left:3px solid var(--blue);cursor:default}
+tr.rdayrow td .daynum{font-size:18.7px;font-weight:700;display:block}
+tr.rdayrow td .dayname{font-size:10px;color:var(--text3);display:block}
+tr.rb td{background:var(--disp-bg);font-weight:600;font-size:16px}
+tr.rb .cc{color:var(--green);border-left:3px solid var(--green);cursor:default;background:var(--disp-bg)}
+tr.rb .tc{background:var(--disp-bg)}
 
 /* cell content */
 .cstack{display:flex;flex-direction:column;width:100%}
@@ -96,11 +106,13 @@ tr.rb .cc{color:var(--blue);border-left:3px solid var(--blue);cursor:default}
 .ce:hover{background:rgba(0,0,0,.04)}
 /* selection overlay */
 .ce.sel::after{content:'';position:absolute;inset:0;background:rgba(29,78,137,.18);border:2px solid var(--blue);pointer-events:none;border-radius:1px}
-.ca{font-size:12px;font-family:'DM Mono',monospace;text-align:right;white-space:nowrap}
+.ca{font-size:14.7px;text-align:right;white-space:nowrap}
 .ca.confirmed{font-weight:500}.ca.forecast{opacity:.6}
 /* default colours only when no custom colour set */
-.ca.income-default{color:var(--green)}.ca.spend-default{color:var(--red)}
-.cn{font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;font-style:italic}
+.ca.income-default{color:var(--green)}
+.ca.spend-shared-default{color:var(--shared-spend)}
+.ca.spend-personal-default{color:var(--red)}
+.cn{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;font-style:italic}
 .cadd{width:100%;min-height:var(--row-h);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:16px;cursor:pointer;opacity:0}
 .dc:hover .cadd{opacity:1}
 .spip{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px;flex-shrink:0}
@@ -165,14 +177,19 @@ textarea.fc{resize:vertical;min-height:52px}
 .ftcsw:hover{transform:scale(1.2)}
 
 /* split */
-#view-split{flex:1;overflow-y:auto;padding:22px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
-.scard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;min-width:240px;flex:1}
+#view-split{flex:1;overflow-y:auto;padding:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;align-items:flex-start}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;min-width:0}
 .scard h3{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:12px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em}
-.srow{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border)}
+.scard h4{font-size:10px;font-weight:500;color:var(--text3);margin-top:12px;margin-bottom:6px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.05em;padding-top:8px;border-top:1px dashed var(--border)}
+.scard h4:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.srow{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);gap:8px}
 .srow:last-child{border-bottom:none}
 .srow.tot{font-weight:500;border-top:2px solid var(--border2);border-bottom:none;margin-top:4px;padding-top:8px}
+.srow.sub{font-size:11.5px;color:var(--text2);padding:2px 0;border-bottom:none}
+.srow.sub .sval{font-size:11.5px}
+.srow.subtot{font-size:12px;color:var(--text);padding:4px 0;border-top:1px dotted var(--border);border-bottom:none;margin-top:2px;font-weight:500}
 .sval{font-family:'DM Mono',monospace}
-.src{background:var(--text);color:#fff;border-radius:8px;padding:22px;text-align:center;flex:1;min-width:240px}
+.src{background:var(--text);color:#fff;border-radius:8px;padding:22px;text-align:center;min-width:0}
 .srclbl{font-size:11px;opacity:.6;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
 .srcamt{font-family:'DM Mono',monospace;font-size:34px;font-weight:500;margin-bottom:18px}
 .srsave{display:flex;gap:10px;justify-content:center}
@@ -181,6 +198,40 @@ textarea.fc{resize:vertical;min-height:52px}
 .srsiv{font-family:'DM Mono',monospace;font-size:15px;font-weight:500}
 .srig{margin-bottom:13px;text-align:left}
 .srig label{font-size:11px;opacity:.7;display:block;margin-bottom:3px;font-family:'DM Mono',monospace}
+
+/* vs Last Month tab */
+#view-vs{flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:18px}
+.vs-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.vs-sum-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.vs-sum-card h3{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:10px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px}
+.vs-sum-card .vs-sum-icon{font-size:14px}
+.vs-sum-card.good{border-left:3px solid var(--green)}
+.vs-sum-card.bad{border-left:3px solid var(--red)}
+.vs-sum-card ul{list-style:none;padding:0;margin:0}
+.vs-sum-card li{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);gap:8px}
+.vs-sum-card li:last-child{border-bottom:none}
+.vs-sum-card .vs-sum-cat{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-sum-card .vs-sum-val{font-family:'DM Mono',monospace;white-space:nowrap;font-size:12.5px}
+.vs-sum-card .vs-sum-empty{color:var(--text3);font-style:italic;font-size:12px;padding:4px 0}
+.vs-label-head{font-size:13px;color:var(--text2);font-family:'DM Mono',monospace}
+
+/* vs Last Month table (now used in own tab) */
+.vs-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px}
+.vs-card h3{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:12px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:10px}
+.vs-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.vs-tbl th{padding:8px 10px;background:var(--surface2);font-size:10px;font-weight:500;color:var(--text2);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);text-align:right}
+.vs-tbl th:first-child{text-align:left}
+.vs-tbl td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;text-align:right;font-size:13px}
+.vs-tbl td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-size:13px}
+.vs-tbl tr.vs-section td{background:var(--surface2);font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:500;padding:6px 10px;text-align:left}
+.vs-tbl tr.vs-total td{font-weight:500;background:var(--surface2)}
+.vs-tbl tr:last-child td{border-bottom:none}
+.vs-up{color:var(--red)} /* spending more = red */
+.vs-down{color:var(--green)} /* spending less = green */
+.vs-neutral{color:var(--text3)}
+.vs-pct{font-size:11px;color:var(--text3);margin-left:4px}
+/* inline pct in srow (Your side) */
+.srow .vs-pct-inline{font-size:11px;font-family:'DM Mono',monospace;margin-left:6px}
 .srig input{width:100%;padding:6px 9px;border:1px solid rgba(255,255,255,.2);border-radius:5px;background:rgba(255,255,255,.1);color:#fff;font-family:'DM Mono',monospace;font-size:13px;outline:none}
 .srig input:focus{border-color:rgba(255,255,255,.5)}
 
@@ -219,9 +270,13 @@ textarea.fc{resize:vertical;min-height:52px}
 .hact.edited{background:var(--blue-bg);color:var(--blue)}
 .hact.copied{background:var(--amber-bg);color:var(--amber)}
 
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar{width:14px;height:14px}
+::-webkit-scrollbar-track{background:var(--surface2);border:1px solid var(--border)}
+::-webkit-scrollbar-thumb{background:#9e9b92;border-radius:7px;border:2px solid var(--surface2);min-height:40px;min-width:40px}
+::-webkit-scrollbar-thumb:hover{background:#6b6960}
+::-webkit-scrollbar-corner{background:var(--surface2)}
+/* Firefox */
+*{scrollbar-width:auto;scrollbar-color:#9e9b92 var(--surface2)}
 </style>
 </head>
 <body>
@@ -235,6 +290,8 @@ textarea.fc{resize:vertical;min-height:52px}
     <button onclick="changeMonth(1)">›</button>
   </div>
   <div class="sep"></div>
+  <button class="btn btn-sm btn-p" onclick="openAddModal('','')" title="Add entry">+ Add entry</button>
+  <div class="sep"></div>
   <span style="font-size:12px;color:var(--text3)" id="ecnt"></span>
   <div class="ta">
     <button class="btn btn-sm btn-ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
@@ -243,7 +300,6 @@ textarea.fc{resize:vertical;min-height:52px}
     <button class="btn btn-sm btn-ghost" onclick="exportCSV()">CSV</button>
     <button class="btn btn-sm btn-ghost" onclick="exportXLSX()">XLSX</button>
     <button class="btn btn-sm btn-ghost" onclick="exportJSON()">JSON</button>
-    <button class="btn btn-sm btn-p" onclick="switchTab('entry');clearEF()">+ Add entry</button>
   </div>
 </div>
 
@@ -251,6 +307,7 @@ textarea.fc{resize:vertical;min-height:52px}
   <button class="tab active" id="tab-master" onclick="switchTab('master')">Master table</button>
   <button class="tab" id="tab-entry" onclick="switchTab('entry');clearEF()">Add entry</button>
   <button class="tab" id="tab-split" onclick="switchTab('split')">Month-end split</button>
+  <button class="tab" id="tab-vs" onclick="switchTab('vs')">vs Last Month</button>
   <button class="tab" id="tab-cats" onclick="switchTab('cats')">Categories</button>
   <button class="tab" id="tab-hist" onclick="switchTab('hist')">History</button>
 </div>
@@ -260,6 +317,7 @@ textarea.fc{resize:vertical;min-height:52px}
   <!-- MASTER TABLE -->
   <div id="view-master" style="display:flex;flex:1;flex-direction:column;overflow:hidden">
     <div class="sbar" id="sbar"></div>
+    <div class="recent-strip" id="recentStrip"></div>
     <div style="display:flex;flex:1;overflow:hidden">
       <div class="sheet-wrap">
         <table class="stbl" id="stbl"></table>
@@ -303,13 +361,18 @@ textarea.fc{resize:vertical;min-height:52px}
     <div class="scard"><h3>Your side</h3><div id="sp-my"></div></div>
     <div class="scard"><h3>Elena's side</h3><div id="sp-el"></div></div>
     <div class="src">
-      <div class="srig"><label>Elena's salary (£)</label><input type="number" id="sp-sal" value="1864" oninput="renderSplit()"></div>
-      <div class="srig"><label>Elena's personal loan (£)</label><input type="number" id="sp-loan" value="114" oninput="renderSplit()"></div>
-      <div class="srig"><label>Other deductions (£)</label><input type="number" id="sp-oth" value="0" oninput="renderSplit()"></div>
+      <div class="srig"><label>Elena's salary (£)</label><input type="number" id="sp-sal" value="1864" oninput="onSplitInput()"></div>
+      <div class="srig"><label>Elena's personal loan (£)</label><input type="number" id="sp-loan" value="114" oninput="onSplitInput()"></div>
+      <div class="srig"><label>Other deductions (£)</label><input type="number" id="sp-oth" value="0" oninput="onSplitInput()"></div>
       <div class="srclbl">Elena sends you</div>
       <div class="srcamt" id="sp-res">£0</div>
       <div class="srsave" id="sp-sav"></div>
     </div>
+  </div>
+
+  <!-- VS LAST MONTH -->
+  <div id="view-vs" style="display:none">
+    <div id="vs-wrap"></div>
   </div>
 
   <!-- CATEGORIES -->
@@ -554,6 +617,9 @@ async function loadAll(){
     history=hData.map(r=>({ts:r.ts,action:r.action,category:r.category,amount:r.amount,note:r.note||'',month:r.month,extra:r.extra||''}));
   }
 
+  // load split config (Elena's salary / loan / other deductions)
+  await loadSplitCfg();
+
   hideLoading();
 }
 function fmt(n){return'£'+Number(n).toFixed(2);}
@@ -600,25 +666,32 @@ function logAction(action, entry, extra=''){
   history.unshift(record);
   if(history.length>500)history.pop();
   saveHist(record); // async, fire-and-forget
+  renderRecentStrip();
 }
 async function clearHist(){
   history=[];
   await clearHistDB();
   renderHist();
+  renderRecentStrip();
 }
 
 // ── Navigation ──
 function changeMonth(dir){
   cm+=dir;if(cm>11){cm=0;cy++;}if(cm<0){cm=11;cy--;}
   clearSel();renderAll();
+  // Refresh whichever non-master tab might be currently visible
+  if(activeTab==='split')renderSplit();
+  if(activeTab==='vs')renderVsTab();
+  if(activeTab==='hist')renderHist();
 }
 function switchTab(n){
   activeTab=n;
-  ['master','entry','split','cats','hist'].forEach(t=>{
+  ['master','entry','split','vs','cats','hist'].forEach(t=>{
     document.getElementById('view-'+t).style.display=t===n?'flex':'none';
     document.getElementById('tab-'+t).classList.toggle('active',t===n);
   });
   if(n==='split')renderSplit();
+  if(n==='vs')renderVsTab();
   if(n==='cats')renderCats();
   if(n==='master')renderAll();
   if(n==='hist')renderHist();
@@ -627,14 +700,60 @@ function switchTab(n){
 // ── Render ──
 function renderAll(){
   document.getElementById('mlbl').textContent=MONTHS[cm].toUpperCase()+' '+cy;
-  renderStats();renderSheet();
+  renderStats();renderSheet();renderRecentStrip();
   document.getElementById('ecnt').textContent=me().length+' entries';
+}
+
+// Split config — in-memory; loaded from Supabase in loadAll(), saved on edit.
+let splitCfg={sal:1864,loan:114,oth:0};
+let splitCfgLoaded=false;
+function getSplitCfg(){return splitCfg;}
+async function loadSplitCfg(){
+  const {data,error}=await supa.from('app_config').select('value').eq('key','split_cfg').maybeSingle();
+  if(error){console.error('load split_cfg error:',error);return;}
+  if(data&&data.value){
+    splitCfg={
+      sal:Number(data.value.sal)||0,
+      loan:Number(data.value.loan)||0,
+      oth:Number(data.value.oth)||0
+    };
+  } else {
+    // First run — no row yet, seed with current defaults
+    console.log('Seeding split_cfg row with defaults:',splitCfg);
+    const {error:seedErr}=await supa.from('app_config').insert({key:'split_cfg',value:splitCfg});
+    if(seedErr)console.error('seed split_cfg error:',seedErr);
+  }
+  splitCfgLoaded=true;
+}
+async function saveSplitCfg(cfg){
+  splitCfg={...cfg};
+  const {error}=await supa.from('app_config').upsert({key:'split_cfg',value:cfg,updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(error)console.error('save split_cfg error:',error);
+}
+
+// Compute split for current month — returns {myRem, elDisp, owes, myF, elF, myInc, shSp, peSp, otherInc}
+function computeSplit(){
+  const me_=me();
+  const cfg=getSplitCfg();
+  const sal=cfg.sal||0,loan=cfg.loan||0,oth=cfg.oth||0;
+  const elDisp=sal-loan-oth;
+  // Salary = income from "My salary" category only
+  const myInc=me_.filter(e=>e.type==='income'&&e.category==='My salary').reduce((s,e)=>s+e.amount,0);
+  // Other incomes = everything except My salary and From Elena (excluded from split)
+  const otherInc=me_.filter(e=>e.type==='income'&&e.category!=='My salary'&&e.category!=='From Elena').reduce((s,e)=>s+e.amount,0);
+  const shSp=me_.filter(e=>e.type==='spend'&&gc(e.category)?.scope!=='personal').reduce((s,e)=>s+e.amount,0);
+  const peSp=me_.filter(e=>e.type==='spend'&&gc(e.category)?.scope==='personal').reduce((s,e)=>s+e.amount,0);
+  const myRem=myInc-shSp-peSp;
+  const target=(myRem+elDisp)/2;
+  const owes=Math.round(elDisp-target);
+  const myF=Math.round(myRem+owes);
+  const elF=Math.round(elDisp-owes);
+  return{myInc,otherInc,shSp,peSp,myRem,elDisp,owes,myF,elF,sal,loan,oth};
 }
 
 function renderStats(){
   const me_=me();
   const days=new Date(cy,cm+1,0).getDate();
-  const upTo=isToday(1)?todayDay:days; // if viewing current month use today, else full month
   const isCurMonth=cy===todayYear&&cm===todayMonth;
   const upToDay=isCurMonth?todayDay:days;
   let todayDisp=0;
@@ -650,11 +769,31 @@ function renderStats(){
     endDisp+=inc-sp;
   }
   const peSp=me_.filter(e=>e.type==='spend'&&gc(e.category)?.scope==='personal').reduce((s,e)=>s+e.amount,0);
-  const todayLbl=isCurMonth?"Today's disposable":"Month disposable";
+  const sp=computeSplit();
+  const todayLbl=isCurMonth?"Today's disp.":"Month disp.";
+  const owesCls=sp.owes>=0?'pos':'neg';
   document.getElementById('sbar').innerHTML=`
     <div class="si"><div class="sl">${todayLbl}</div><div class="sv ${todayDisp>=0?'pos':'neg'}">${fmtR(todayDisp)}</div></div>
-    <div class="si"><div class="sl">Personal spend</div><div class="sv" style="color:var(--amber)">${fmt(peSp)}</div></div>
-    <div class="si"><div class="sl">End of month disposable</div><div class="sv ${endDisp>=0?'pos':'neg'}">${fmtR(endDisp)}</div></div>`;
+    <div class="si"><div class="sl">Personal spend</div><div class="sv" style="color:var(--red)">${fmt(peSp)}</div></div>
+    <div class="si"><div class="sl">End-of-month disp.</div><div class="sv ${endDisp>=0?'pos':'neg'}">${fmtR(endDisp)}</div></div>
+    <div class="si"><div class="sl">Elena sends you</div><div class="sv ${owesCls}">${fmtR(sp.owes)}</div></div>`;
+}
+
+function renderRecentStrip(){
+  const el=document.getElementById('recentStrip');
+  if(!el)return;
+  if(!history.length){
+    el.innerHTML='<span class="rs-lbl">Recent action</span><span class="rs-empty">— no actions yet —</span>';
+    return;
+  }
+  const h=history[0];
+  const d=new Date(h.ts);
+  const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const actBadge=`<span class="hact ${h.action}" style="font-size:10px;padding:1px 6px">${h.action}</span>`;
+  const amt=h.amount?fmt(h.amount):'';
+  const note=h.note?` · <span style="font-style:italic">${h.note}</span>`:'';
+  const extra=h.extra?` · <span style="color:var(--text3)">${h.extra}</span>`:'';
+  el.innerHTML=`<span class="rs-lbl">Recent</span>${actBadge}<span style="color:var(--text2)">${ts}</span><span>·</span><span style="font-weight:500;color:var(--text)">${h.category}</span>${amt?`<span>·</span><span>${amt}</span>`:''}${note}${extra}<span style="margin-left:auto"><span style="color:var(--text3)">${h.month}</span></span>`;
 }
 
 function renderSheet(){
@@ -675,6 +814,20 @@ function renderSheet(){
   hdr+='</tr></thead>';
 
   let body='<tbody>';
+
+  // ── Sticky DISPOSABLE row (frozen at top under header) ──
+  body+=`<tr class="rb rb-top"><td class="cc" style="position:sticky;left:0;top:var(--hdr-h);z-index:25;background:var(--disp-bg);color:var(--green);border-left:3px solid var(--green);font-size:16px">Disposable</td><td class="tc" style="position:sticky;left:var(--col-cat);top:var(--hdr-h);z-index:25;background:var(--disp-bg)"></td>`;
+  let runT=0;
+  for(let d=1;d<=days;d++){
+    const inc=me_.filter(e=>e.type==='income'&&new Date(e.date+'T00:00:00').getDate()===d).reduce((s,e)=>s+e.amount,0);
+    const sp=me_.filter(e=>e.type==='spend'&&new Date(e.date+'T00:00:00').getDate()===d).reduce((s,e)=>s+e.amount,0);
+    runT+=inc-sp;
+    const hasAct=me_.some(e=>new Date(e.date+'T00:00:00').getDate()===d);
+    const ms=d===1,ws=!ms&&isWeekStart(d),tod=isToday(d);
+    body+=`<td class="dc${ms?' month-start':ws?' week-start':''}${tod?' today-col':''}" style="position:sticky;top:var(--hdr-h);z-index:15;background:var(--disp-bg);text-align:center;vertical-align:middle;font-size:14px;color:${runT<0?'var(--red)':'var(--green)'};font-weight:600;padding:0 2px">${(hasAct||runT!==0)?Math.round(runT):''}</td>`;
+  }
+  body+='</tr>';
+
   const isEmpty=me_.length===0;
   if(isEmpty){
     body+=`<tr><td colspan="${days+2}" style="padding:20px;text-align:center;color:var(--text2)">No entries for this month. <button class="btn btn-sm btn-p" style="margin-left:10px" onclick="copyPrevMonth()">Copy from previous month</button></td></tr>`;
@@ -686,9 +839,9 @@ function renderSheet(){
     const isInc=cat.type==='income';
     const isPers=cat.scope==='personal';
     const rowCls=isInc?'ri':isPers?'rp':'rs';
-    const defBg=isInc?'#f6fdf8':isPers?'#fffbf0':'#ffffff';
+    const defBg=isInc?'#f6fdf8':isPers?'#fef5f5':'#ffffff';
     const bg=cat.colour||defBg;
-    const amtCol=isInc?'var(--green)':isPers?'var(--amber)':'var(--red)';
+    const amtCol=isInc?'var(--green)':isPers?'var(--red)':'var(--shared-spend)';
 
     body+=`<tr class="${rowCls}" oncontextmenu="openCatCtx(event,'${escQ(cat.name)}')">`;
     body+=`<td class="cc" style="background:${bg}" onclick="openCatSB('${escQ(cat.name)}')"><span class="spip ${cat.scope}"></span>${cat.name}</td>`;
@@ -706,7 +859,7 @@ function renderSheet(){
           const cs=cellStyles[tx.id]||{};
           const isSel=selEntries.has(tx.id);
           const divSt=cs.bgColor?`background:${cs.bgColor}`:'';
-          const spSt=buildSpanStyle(cs,tx.type);
+          const spSt=buildSpanStyle(cs,tx.type,cat.scope);
           body+=`<div class="ce${isSel?' sel':''}" style="${divSt}" onclick="handleCellClick(event,${tx.id},'${escQ(cat.name)}','${ds}')" oncontextmenu="openCellCtx(event,'${escQ(cat.name)}',${d},${tx.id})">
             <span class="ca ${tx.status}" style="${spSt}">${'£'}${tx.amount%1===0?tx.amount:tx.amount.toFixed(2)}</span>
             ${tx.note?`<span class="cn" title="${tx.note}">${tx.note}</span>`:''}
@@ -727,22 +880,22 @@ function renderSheet(){
   for(let d=1;d<=days;d++){
     const s=me_.filter(e=>e.type==='income'&&new Date(e.date+'T00:00:00').getDate()===d).reduce((s,e)=>s+e.amount,0);
     const ms=d===1,ws=!ms&&isWeekStart(d),tod=isToday(d);
-    body+=`<td class="dc${ms?' month-start':ws?' week-start':''}${tod?' today-col':''}" style="text-align:center;vertical-align:middle;font-size:11px;color:var(--green);font-weight:500;padding:0 2px">${s||''}</td>`;
+    body+=`<td class="dc${ms?' month-start':ws?' week-start':''}${tod?' today-col':''}" style="text-align:center;vertical-align:middle;font-size:12px;color:var(--green);font-weight:500;padding:0 2px">${s||''}</td>`;
   }
   body+='</tr>';
 
   // total spend row
   const tSp=me_.filter(e=>e.type==='spend').reduce((s,e)=>s+e.amount,0);
-  body+=`<tr class="rt"><td class="cc">Total spend</td><td class="tc" style="color:var(--red)">${fmtR(tSp)}</td>`;
+  body+=`<tr class="rt"><td class="cc">Total spend</td><td class="tc" style="color:var(--shared-spend)">${fmtR(tSp)}</td>`;
   for(let d=1;d<=days;d++){
     const s=me_.filter(e=>e.type==='spend'&&new Date(e.date+'T00:00:00').getDate()===d).reduce((s,e)=>s+e.amount,0);
     const ms=d===1,ws=!ms&&isWeekStart(d),tod=isToday(d);
-    body+=`<td class="dc${ms?' month-start':ws?' week-start':''}${tod?' today-col':''}" style="text-align:center;vertical-align:middle;font-size:11px;color:var(--red);font-weight:500;padding:0 2px">${s||''}</td>`;
+    body+=`<td class="dc${ms?' month-start':ws?' week-start':''}${tod?' today-col':''}" style="text-align:center;vertical-align:middle;font-size:12px;color:var(--shared-spend);font-weight:500;padding:0 2px">${s||''}</td>`;
   }
   body+='</tr>';
 
-  // bottom day row (repeated, above disposable)
-  body+=`<tr class="rdayrow"><td class="cc" style="font-size:12px;font-weight:600">Day</td><td class="tc"></td>`;
+  // bottom day row (repeated)
+  body+=`<tr class="rdayrow"><td class="cc" style="font-size:14.7px;font-weight:600">Day</td><td class="tc"></td>`;
   for(let d=1;d<=days;d++){
     const ms=d===1,ws=!ms&&isWeekStart(d),tod=isToday(d);
     const dow=DOW[new Date(cy,cm,d).getDay()];
@@ -753,27 +906,20 @@ function renderSheet(){
   }
   body+='</tr>';
 
-  // disposable row
-  body+=`<tr class="rb"><td class="cc">Disposable</td><td class="tc"></td>`;
-  let run=0;
-  for(let d=1;d<=days;d++){
-    const inc=me_.filter(e=>e.type==='income'&&new Date(e.date+'T00:00:00').getDate()===d).reduce((s,e)=>s+e.amount,0);
-    const sp=me_.filter(e=>e.type==='spend'&&new Date(e.date+'T00:00:00').getDate()===d).reduce((s,e)=>s+e.amount,0);
-    run+=inc-sp;
-    const hasAct=me_.some(e=>new Date(e.date+'T00:00:00').getDate()===d);
-    const ms=d===1,ws=!ms&&isWeekStart(d),tod=isToday(d);
-    body+=`<td class="dc${ms?' month-start':ws?' week-start':''}${tod?' today-col':''}" style="text-align:center;vertical-align:middle;font-size:11px;color:var(--blue);font-weight:500;padding:0 2px">${(hasAct||run!==0)?Math.round(run):''}</td>`;
-  }
-  body+='</tr></tbody>';
+  body+='</tbody>';
   document.getElementById('stbl').innerHTML=hdr+body;
 }
 
 // styles split: div gets only bgColor, span gets font/colour
-function buildSpanStyle(cs,type){
+function buildSpanStyle(cs,type,scope){
   const fw=cs.bold?'700':(cs.fontSize?'400':'500');
   const fi=cs.italic?'italic':'normal';
-  const fs=(cs.fontSize||12)+'px';
-  const col=cs.color||(type==='income'?'var(--green)':'var(--red)');
+  const fs=(cs.fontSize||14.7)+'px';
+  let defCol;
+  if(type==='income')defCol='var(--green)';
+  else if(scope==='personal')defCol='var(--red)';
+  else defCol='var(--shared-spend)';
+  const col=cs.color||defCol;
   return `font-weight:${fw};font-style:${fi};font-size:${fs};color:${col}`;
 }
 
@@ -908,11 +1054,20 @@ function openCellModal(id,cat,date){
 }
 
 function openAddModal(cat,date){
+  // If no category given, default to "Food & shop" if it exists, else first spend cat
+  if(!cat){
+    const def=cats.find(c=>c.name==='Food & shop')||cats.find(c=>c.type==='spend')||cats[0];
+    cat=def?def.name:'';
+  }
+  // If no date given, default to today
+  if(!date)date=new Date().toISOString().slice(0,10);
   const catObj=gc(cat);
-  document.getElementById('m-title').textContent='Add — '+cat;
-  document.getElementById('m-body').innerHTML=buildForm({category:cat,date:date||'',type:catObj?.type||'spend',amount:'',status:'confirmed',note:''});
+  document.getElementById('m-title').textContent='Add entry'+(cat?' — '+cat:'');
+  document.getElementById('m-body').innerHTML=buildForm({category:cat,date:date,type:catObj?.type||'spend',amount:'',status:'confirmed',note:''});
   document.getElementById('m-foot').innerHTML=`<button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-p" onclick="saveEntry(null)">Add entry</button>`;
   document.getElementById('modal').classList.remove('hidden');
+  // Focus the amount field for quick mobile entry
+  setTimeout(()=>{const a=document.getElementById('m-amt');if(a)a.focus();},80);
 }
 
 function buildForm(e){
@@ -1115,34 +1270,256 @@ async function submitEF(){
 }
 
 // ── Split ──
+let _splitSaveTimer=null;
+function onSplitInput(){
+  const cfg={
+    sal:parseFloat(document.getElementById('sp-sal').value)||0,
+    loan:parseFloat(document.getElementById('sp-loan').value)||0,
+    oth:parseFloat(document.getElementById('sp-oth').value)||0
+  };
+  // Update in-memory immediately so renders use the new values
+  splitCfg=cfg;
+  // Debounce Supabase write so typing "1864" doesn't fire 4 round trips
+  if(_splitSaveTimer)clearTimeout(_splitSaveTimer);
+  _splitSaveTimer=setTimeout(()=>{saveSplitCfg(cfg);},600);
+  renderSplit();
+  renderStats(); // topbar "Elena sends you" depends on this
+}
+
+// Get entries for a specific month/year
+function entriesForMonth(month,year){
+  return entries.filter(e=>{
+    const d=new Date(e.date+'T00:00:00');
+    return d.getMonth()===month&&d.getFullYear()===year;
+  });
+}
+
+// Compute totals for a given month's entries — used by Split + vs Last Month
+function monthTotals(monthEntries){
+  const salary=monthEntries.filter(e=>e.type==='income'&&e.category==='My salary').reduce((s,e)=>s+e.amount,0);
+  const otherInc=monthEntries.filter(e=>e.type==='income'&&e.category!=='My salary'&&e.category!=='From Elena').reduce((s,e)=>s+e.amount,0);
+  const fromElena=monthEntries.filter(e=>e.type==='income'&&e.category==='From Elena').reduce((s,e)=>s+e.amount,0);
+  const shSp=monthEntries.filter(e=>e.type==='spend'&&gc(e.category)?.scope!=='personal').reduce((s,e)=>s+e.amount,0);
+  const peSp=monthEntries.filter(e=>e.type==='spend'&&gc(e.category)?.scope==='personal').reduce((s,e)=>s+e.amount,0);
+  // per-category breakdowns for spend
+  const shBy={},peBy={};
+  monthEntries.filter(e=>e.type==='spend').forEach(e=>{
+    const sc=gc(e.category)?.scope;
+    if(sc==='personal'){peBy[e.category]=(peBy[e.category]||0)+e.amount;}
+    else{shBy[e.category]=(shBy[e.category]||0)+e.amount;}
+  });
+  // Other income broken down by NOTE (not category) — "other / no notes" for empty
+  const incBy={};
+  monthEntries.filter(e=>e.type==='income'&&e.category!=='My salary'&&e.category!=='From Elena').forEach(e=>{
+    const key=(e.note&&e.note.trim())?e.note.trim():'other / no notes';
+    incBy[key]=(incBy[key]||0)+e.amount;
+  });
+  return{salary,otherInc,fromElena,shSp,peSp,shBy,peBy,incBy};
+}
+
+// Difference helpers — shared between Split (Your side) and vs tab
+function diffOf(a,b){
+  const d=a-b;
+  const pct=b!==0?(d/Math.abs(b))*100:(a!==0?100:0);
+  return{d,pct};
+}
+// spendKind=true: more spend = red, less = green. spendKind=false (income): more = green, less = red.
+function fmtDiffHTML({d,pct},spendKind){
+  if(Math.abs(d)<0.005)return`<span class="vs-neutral">±£0</span>`;
+  const isUp=d>0;
+  const cls=spendKind?(isUp?'vs-up':'vs-down'):(isUp?'vs-down':'vs-up');
+  const sign=isUp?'+':'-';
+  const pctStr=isFinite(pct)&&pct!==0?`<span class="vs-pct">(${sign}${Math.abs(pct).toFixed(0)}%)</span>`:'';
+  return`<span class="${cls}">${sign}£${Math.abs(Math.round(d))} ${pctStr}</span>`;
+}
+// Inline pct (small) for Your side rows
+function pctInlineHTML(cur,prev,spendKind){
+  if(prev===0&&cur===0)return'';
+  const{d,pct}=diffOf(cur,prev);
+  if(Math.abs(d)<0.005)return`<span class="vs-pct-inline vs-neutral">±0%</span>`;
+  const isUp=d>0;
+  const cls=spendKind?(isUp?'vs-up':'vs-down'):(isUp?'vs-down':'vs-up');
+  const sign=isUp?'+':'';
+  if(!isFinite(pct))return`<span class="vs-pct-inline ${cls}">new</span>`;
+  return`<span class="vs-pct-inline ${cls}">${sign}${pct.toFixed(0)}%</span>`;
+}
+
 function renderSplit(){
+  // Make sure inputs reflect stored config
+  const cfg=getSplitCfg();
+  const salEl=document.getElementById('sp-sal');
+  const loanEl=document.getElementById('sp-loan');
+  const othEl=document.getElementById('sp-oth');
+  if(salEl&&document.activeElement!==salEl)salEl.value=cfg.sal;
+  if(loanEl&&document.activeElement!==loanEl)loanEl.value=cfg.loan;
+  if(othEl&&document.activeElement!==othEl)othEl.value=cfg.oth;
+
+  const sp=computeSplit();
   const me_=me();
-  const sal=parseFloat(document.getElementById('sp-sal').value)||0;
-  const loan=parseFloat(document.getElementById('sp-loan').value)||0;
-  const oth=parseFloat(document.getElementById('sp-oth').value)||0;
-  const elDisp=sal-loan-oth;
-  const myInc=me_.filter(e=>e.type==='income'&&e.category!=='From Elena').reduce((s,e)=>s+e.amount,0);
-  const shSp=me_.filter(e=>e.type==='spend'&&gc(e.category)?.scope!=='personal').reduce((s,e)=>s+e.amount,0);
-  const peSp=me_.filter(e=>e.type==='spend'&&gc(e.category)?.scope==='personal').reduce((s,e)=>s+e.amount,0);
-  const myRem=myInc-shSp-peSp;
-  const target=(myRem+elDisp)/2;
-  const owes=Math.round(elDisp-target);
-  const myF=Math.round(myRem+owes);
-  const elF=Math.round(elDisp-owes);
+  const t=monthTotals(me_);
+
+  // Previous month for change %
+  let pm=cm-1,py=cy;if(pm<0){pm=11;py--;}
+  const pT=monthTotals(entriesForMonth(pm,py));
+
+  // Breakdown rows with inline change %
+  const breakdownWithPct=(curBy,prevBy,colour,spendKind)=>{
+    const items=Object.entries(curBy).sort((a,b)=>b[1]-a[1]);
+    if(!items.length)return'<div class="srow sub" style="color:var(--text3);font-style:italic">none</div>';
+    return items.map(([k,amt])=>{
+      const prevAmt=prevBy[k]||0;
+      return`<div class="srow sub"><span>${k}${pctInlineHTML(amt,prevAmt,spendKind)}</span><span class="sval" style="color:${colour}">${fmt(amt)}</span></div>`;
+    }).join('');
+  };
+
+  // === Your side ===
   document.getElementById('sp-my').innerHTML=`
-    <div class="srow"><span>Income (excl. Elena)</span><span class="sval pos">${fmt(myInc)}</span></div>
-    <div class="srow"><span>Shared spend</span><span class="sval neg">-${fmt(shSp)}</span></div>
-    ${peSp?`<div class="srow"><span>Personal spend</span><span class="sval" style="color:var(--amber)">-${fmt(peSp)}</span></div>`:''}
-    <div class="srow tot"><span>Balance before transfer</span><span class="sval">${fmt(myRem)}</span></div>`;
+    <h4>Shared</h4>
+    <div class="srow"><span>My salary${pctInlineHTML(t.salary,pT.salary,false)}</span><span class="sval pos">${fmt(t.salary)}</span></div>
+    <div class="srow"><span>Shared spend${pctInlineHTML(t.shSp,pT.shSp,true)}</span><span class="sval" style="color:var(--shared-spend)">-${fmt(t.shSp)}</span></div>
+    ${Object.keys(t.shBy).length?breakdownWithPct(t.shBy,pT.shBy,'var(--shared-spend)',true):''}
+    <div class="srow subtot"><span>Shared balance</span><span class="sval">${fmt(t.salary-t.shSp)}</span></div>
+
+    <h4>Personal</h4>
+    ${t.otherInc>0?`
+      <div class="srow"><span>Other income <span style="font-size:10px;color:var(--text3)">(excl. from split)</span>${pctInlineHTML(t.otherInc,pT.otherInc,false)}</span><span class="sval pos">${fmt(t.otherInc)}</span></div>
+      ${breakdownWithPct(t.incBy,pT.incBy,'var(--green)',false)}
+    `:'<div class="srow sub" style="color:var(--text3);font-style:italic">no other income</div>'}
+    <div class="srow"><span>Personal spend${pctInlineHTML(t.peSp,pT.peSp,true)}</span><span class="sval neg">-${fmt(t.peSp)}</span></div>
+    ${Object.keys(t.peBy).length?breakdownWithPct(t.peBy,pT.peBy,'var(--red)',true):''}
+
+    <div class="srow tot"><span>Balance before transfer</span><span class="sval">${fmt(sp.myRem)}</span></div>`;
+
+  // === Elena's side ===
   document.getElementById('sp-el').innerHTML=`
-    <div class="srow"><span>Salary</span><span class="sval pos">${fmt(sal)}</span></div>
-    <div class="srow"><span>Personal loan</span><span class="sval neg">-${fmt(loan)}</span></div>
-    ${oth?`<div class="srow"><span>Other deductions</span><span class="sval neg">-${fmt(oth)}</span></div>`:''}
-    <div class="srow tot"><span>Disposable</span><span class="sval">${fmt(elDisp)}</span></div>`;
-  document.getElementById('sp-res').textContent=fmt(owes);
+    <div class="srow"><span>Salary</span><span class="sval pos">${fmt(sp.sal)}</span></div>
+    <div class="srow"><span>Personal loan</span><span class="sval neg">-${fmt(sp.loan)}</span></div>
+    ${sp.oth?`<div class="srow"><span>Other deductions</span><span class="sval neg">-${fmt(sp.oth)}</span></div>`:''}
+    <div class="srow tot"><span>Disposable</span><span class="sval">${fmt(sp.elDisp)}</span></div>`;
+
+  // === Transfer card ===
+  document.getElementById('sp-res').textContent=fmt(sp.owes);
   document.getElementById('sp-sav').innerHTML=`
-    <div class="srsi"><div class="srsil">Your savings</div><div class="srsiv">${fmt(myF)}</div></div>
-    <div class="srsi"><div class="srsil">Elena's savings</div><div class="srsiv">${fmt(elF)}</div></div>`;
+    <div class="srsi"><div class="srsil">Your savings</div><div class="srsiv">${fmt(sp.myF)}</div></div>
+    <div class="srsi"><div class="srsil">Elena's savings</div><div class="srsiv">${fmt(sp.elF)}</div></div>`;
+}
+
+// ── vs Last Month tab ──
+function renderVsTab(){
+  // Prev month/year
+  let pm=cm-1,py=cy;if(pm<0){pm=11;py--;}
+  const curT=monthTotals(me());
+  const pT=monthTotals(entriesForMonth(pm,py));
+
+  // Compute item-level diffs for summary cards
+  // For shared+personal spend: positive d (cur > prev) is bad; for income: positive d is good
+  const items=[];
+  const addItem=(label,cur,prev,kind)=>{
+    if(cur===0&&prev===0)return;
+    const{d,pct}=diffOf(cur,prev);
+    items.push({label,cur,prev,d,pct,kind}); // kind: 'spend' | 'income'
+  };
+
+  // Shared spend categories
+  Array.from(new Set([...Object.keys(curT.shBy),...Object.keys(pT.shBy)])).forEach(c=>{
+    addItem(c,curT.shBy[c]||0,pT.shBy[c]||0,'spend');
+  });
+  // Personal spend categories
+  Array.from(new Set([...Object.keys(curT.peBy),...Object.keys(pT.peBy)])).forEach(c=>{
+    addItem(c+' (personal)',curT.peBy[c]||0,pT.peBy[c]||0,'spend');
+  });
+  // Salary
+  addItem('My salary',curT.salary,pT.salary,'income');
+  // Other incomes (by note)
+  Array.from(new Set([...Object.keys(curT.incBy),...Object.keys(pT.incBy)])).forEach(n=>{
+    addItem(n,curT.incBy[n]||0,pT.incBy[n]||0,'income');
+  });
+
+  // "Better" = good change. Spend down OR income up.
+  // "Worse" = bad change. Spend up OR income down.
+  const better=[],worse=[];
+  items.forEach(it=>{
+    if(Math.abs(it.d)<0.005)return;
+    const isUp=it.d>0;
+    const good=it.kind==='spend'?!isUp:isUp; // spend down OR income up = good
+    (good?better:worse).push(it);
+  });
+  // Sort by absolute change (biggest impact first)
+  better.sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+  worse.sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+
+  const renderList=(list,goodKind)=>{
+    if(!list.length)return`<div class="vs-sum-empty">— nothing significant —</div>`;
+    return`<ul>${list.slice(0,8).map(it=>{
+      const isUp=it.d>0;
+      const sign=isUp?'+':'-';
+      const amount=`£${Math.abs(Math.round(it.d))}`;
+      const pctStr=isFinite(it.pct)&&it.pct!==0?` (${sign}${Math.abs(it.pct).toFixed(0)}%)`:'';
+      const cls=goodKind?'vs-down':'vs-up';
+      const direction=isUp?'↑':'↓';
+      return`<li><span class="vs-sum-cat" title="${it.label}">${direction} ${it.label}</span><span class="vs-sum-val ${cls}">${sign}${amount}${pctStr}</span></li>`;
+    }).join('')}</ul>`;
+  };
+
+  // Net headline — total disposable change
+  const curDisp=curT.salary+curT.otherInc+curT.fromElena-curT.shSp-curT.peSp;
+  const prevDisp=pT.salary+pT.otherInc+pT.fromElena-pT.shSp-pT.peSp;
+  const netDiff=diffOf(curDisp,prevDisp);
+  const netSign=netDiff.d>0?'+':netDiff.d<0?'-':'±';
+  const netCls=netDiff.d>0?'vs-down':netDiff.d<0?'vs-up':'vs-neutral';
+
+  // Sub-helpers for the comparison table
+  const shCats=Array.from(new Set([...Object.keys(curT.shBy),...Object.keys(pT.shBy)])).sort((a,b)=>(curT.shBy[b]||0)-(curT.shBy[a]||0));
+  const peCats=Array.from(new Set([...Object.keys(curT.peBy),...Object.keys(pT.peBy)])).sort((a,b)=>(curT.peBy[b]||0)-(curT.peBy[a]||0));
+  const incNotes=Array.from(new Set([...Object.keys(curT.incBy),...Object.keys(pT.incBy)])).sort((a,b)=>(curT.incBy[b]||0)-(curT.incBy[a]||0));
+
+  const row=(label,cur,prev,spendKind)=>`<tr>
+    <td>${label}</td>
+    <td>${fmt(prev)}</td>
+    <td>${fmt(cur)}</td>
+    <td>${fmtDiffHTML(diffOf(cur,prev),spendKind)}</td>
+  </tr>`;
+
+  const wrap=document.getElementById('vs-wrap');
+  wrap.innerHTML=`
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <h2 style="font-size:18px;font-weight:500">vs Last Month</h2>
+      <span class="vs-label-head">${MONTHS[pm]} ${py} → ${MONTHS[cm]} ${cy}</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--text2)">Net disposable change: <span class="${netCls}" style="font-family:'DM Mono',monospace;font-weight:500">${netSign}£${Math.abs(Math.round(netDiff.d))}</span></span>
+    </div>
+
+    <div class="vs-summary">
+      <div class="vs-sum-card good">
+        <h3><span class="vs-sum-icon">✓</span> What went well</h3>
+        ${renderList(better,true)}
+      </div>
+      <div class="vs-sum-card bad">
+        <h3><span class="vs-sum-icon">✕</span> What got worse</h3>
+        ${renderList(worse,false)}
+      </div>
+    </div>
+
+    <div class="vs-card">
+      <h3>Full breakdown</h3>
+      <table class="vs-tbl">
+        <thead><tr><th>Category / Note</th><th>${MONTHS[pm].slice(0,3)} ${py}</th><th>${MONTHS[cm].slice(0,3)} ${cy}</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr class="vs-section"><td colspan="4">Income</td></tr>
+          ${row('My salary',curT.salary,pT.salary,false)}
+          ${incNotes.map(n=>row(n,curT.incBy[n]||0,pT.incBy[n]||0,false)).join('')}
+          ${(curT.fromElena||pT.fromElena)?row('From Elena',curT.fromElena,pT.fromElena,false):''}
+          <tr class="vs-total">${row('Total income',curT.salary+curT.otherInc+curT.fromElena,pT.salary+pT.otherInc+pT.fromElena,false).replace(/^<tr>|<\/tr>$/g,'')}</tr>
+
+          <tr class="vs-section"><td colspan="4">Shared spend</td></tr>
+          ${shCats.length?shCats.map(c=>row(c,curT.shBy[c]||0,pT.shBy[c]||0,true)).join(''):'<tr><td colspan="4" style="color:var(--text3);font-style:italic;text-align:center">no shared spend</td></tr>'}
+          <tr class="vs-total">${row('Total shared',curT.shSp,pT.shSp,true).replace(/^<tr>|<\/tr>$/g,'')}</tr>
+
+          <tr class="vs-section"><td colspan="4">Personal spend</td></tr>
+          ${peCats.length?peCats.map(c=>row(c,curT.peBy[c]||0,pT.peBy[c]||0,true)).join(''):'<tr><td colspan="4" style="color:var(--text3);font-style:italic;text-align:center">no personal spend</td></tr>'}
+          <tr class="vs-total">${row('Total personal',curT.peSp,pT.peSp,true).replace(/^<tr>|<\/tr>$/g,'')}</tr>
+        </tbody>
+      </table>
+    </div>`;
 }
 
 // ── Exports ──
@@ -1191,6 +1568,8 @@ function exportXLSX(){
 updateEFCats();
 document.getElementById('ef-date').value=new Date().toISOString().slice(0,10);
 updateUndoUI();
+// Split inputs populate after loadAll() via renderSplit() when user opens the Split tab.
+// Topbar "Elena sends you" works immediately after loadAll() because computeSplit() reads from in-memory splitCfg.
 // Load from Supabase then render
 loadAll().then(()=>renderAll());
 </script>
