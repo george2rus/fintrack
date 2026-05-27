@@ -121,10 +121,11 @@ tr.rb .tc{background:var(--disp-bg)}
 /* sidebar */
 .sidebar{width:var(--sb-w);background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
 .sidebar.hidden{display:none}
-.sbh{padding:12px 14px 9px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
-.sbh h3{font-size:13px;font-weight:500;flex:1}
-.sbb{flex:1;overflow-y:auto;padding:14px}
+.sbh{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sbh h3{font-size:13px;font-weight:500;flex:1 1 100%;min-width:0;line-height:1.3;margin:0;order:-1}
+.sbb{flex:1;overflow-y:auto;padding:0}
 .sbf{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px}
+.sbf:empty{display:none;padding:0;border:none}
 .ecard{border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-bottom:6px}
 .ecard:hover{border-color:var(--border2);background:var(--bg)}
 .ecamt{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;white-space:nowrap}
@@ -291,12 +292,12 @@ textarea.fc{resize:vertical;min-height:52px}
   </div>
   <div class="sep"></div>
   <button class="btn btn-sm btn-p" onclick="openAddModal('','')" title="Add entry">+ Add entry</button>
+  <button class="btn btn-sm btn-ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
+  <button class="btn btn-sm btn-ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" disabled>↪ Redo</button>
+  <button class="btn btn-sm" id="clearAllBtn" onclick="clearAllMonth()" title="Clear all entries in this month" style="color:var(--red);border-color:#fca5a5">⊘ Clear all</button>
   <div class="sep"></div>
   <span style="font-size:12px;color:var(--text3)" id="ecnt"></span>
   <div class="ta">
-    <button class="btn btn-sm btn-ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
-    <button class="btn btn-sm btn-ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" disabled>↪ Redo</button>
-    <div class="sep"></div>
     <button class="btn btn-sm btn-ghost" onclick="exportCSV()">CSV</button>
     <button class="btn btn-sm btn-ghost" onclick="exportXLSX()">XLSX</button>
     <button class="btn btn-sm btn-ghost" onclick="exportJSON()">JSON</button>
@@ -529,6 +530,12 @@ async function saveE(changedEntry){
 async function deleteEntryDB(id){
   const {error}=await supa.from('entries').delete().eq('id',Math.round(id));
   if(error)console.error('deleteEntryDB error:',error);
+}
+async function deleteEntriesDB(ids){
+  if(!ids.length)return;
+  const rounded=ids.map(i=>Math.round(i));
+  const {error}=await supa.from('entries').delete().in('id',rounded);
+  if(error)console.error('deleteEntriesDB error:',error);
 }
 
 // ── Cats ──
@@ -835,7 +842,7 @@ function renderSheet(){
 
   const isEmpty=me_.length===0;
   if(isEmpty){
-    body+=`<tr><td colspan="${days+2}" style="padding:20px;text-align:center;color:var(--text2)">No entries for this month. <button class="btn btn-sm btn-p" style="margin-left:10px" onclick="copyPrevMonth()">Copy from previous month</button></td></tr>`;
+    body+=`<tr><td colspan="${days+2}" style="padding:20px;text-align:center;color:var(--text2)">No entries for this month. <button class="btn btn-sm btn-p" style="margin-left:10px" onclick="openCopyDialog()">Copy from another month</button></td></tr>`;
   }
 
   cats.forEach(cat=>{
@@ -939,7 +946,8 @@ function handleCellClick(ev,id,cat,date){
     selEntries.add(id);
     renderSheet();updateSelBar();
   } else {
-    openCellModal(id,cat,date);
+    // v1.0.3: left-click on existing data opens day+category sidebar (was: edit modal)
+    openDaySB(cat,date);
   }
 }
 function updateSelBar(){
@@ -964,9 +972,12 @@ function openCatCtx(ev,catName){
   const m=document.getElementById('ctx');
   m.classList.remove('hidden');
   m.style.left=Math.min(ev.clientX,window.innerWidth-215)+'px';
-  m.style.top=Math.min(ev.clientY,window.innerHeight-340)+'px';
+  m.style.top=Math.min(ev.clientY,window.innerHeight-380)+'px';
   m.innerHTML=`
     <div class="cxi" onclick="closeCtx();openCatSB('${escQ(catName)}')">📋 View entries</div>
+    <div class="cxi" onclick="closeCtx();copyCategoryFromPrev('${escQ(catName)}')">📥 Copy prev. month data</div>
+    <div class="cxi" onclick="closeCtx();clearCategoryRow('${escQ(catName)}')"><span style="color:var(--red);font-weight:600;width:14px;display:inline-block;text-align:center">✕</span> Clear row</div>
+    <div class="cxsep"></div>
     <div class="cxi" onclick="closeCtx();moveCat('${escQ(catName)}',-1)">↑ Move up</div>
     <div class="cxi" onclick="closeCtx();moveCat('${escQ(catName)}',1)">↓ Move down</div>
     <div class="cxsep"></div>
@@ -983,30 +994,31 @@ function openCellCtx(ev,catName,day,txId){
   const m=document.getElementById('ctx');
   m.classList.remove('hidden');
   m.style.left=Math.min(ev.clientX,window.innerWidth-230)+'px';
-  m.style.top=Math.min(ev.clientY,window.innerHeight-400)+'px';
+  m.style.top=Math.min(ev.clientY,window.innerHeight-500)+'px';
   const ds=`${cy}-${String(cm+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 
   if(txId){
     const cs=cellStyles[txId]||{};
     m.innerHTML=`
+      <div class="cxi" onclick="closeCtx();clearCell(${txId})"><span style="color:var(--red);font-weight:600;width:14px;display:inline-block;text-align:center">✕</span> Delete</div>
+      <div class="cxi" onclick="closeCtx();openAddModal('${escQ(catName)}','${ds}')"><span style="color:var(--green);font-weight:600;width:14px;display:inline-block;text-align:center">+</span> Add</div>
+      <div class="cxi" onclick="closeCtx();openCellModal(${txId},'${escQ(catName)}','${ds}')">✏️ Edit</div>
+      <div class="cxsep"></div>
+      <div class="cxi" onclick="event.stopPropagation();clearCS(${txId})">🧹 Clear formatting</div>
+      <div class="cxlbl">🎨 Text colour</div>
+      <div class="ftcolgrid">${TXTCOLS.map(c=>`<div class="ftcsw" style="background:${c}" onclick="event.stopPropagation();setCS(${txId},'color','${c}')"></div>`).join('')}</div>
+      <div class="cxlbl">🖌️ Cell fill colour</div>
+      <div class="cgrid">${BGCOLS.map(c=>`<div class="csw" style="background:${c}" onclick="event.stopPropagation();setCS(${txId},'bgColor','${c}')"></div>`).join('')}</div>
+      <div class="cxsep"></div>
       <div class="cxlbl">Text style</div>
       <div class="ftbar">
         <button class="ftbtn${cs.bold?' on':''}" onclick="event.stopPropagation();toggleCS(${txId},'bold')"><b>B</b></button>
         <button class="ftbtn${cs.italic?' on':''}" onclick="event.stopPropagation();toggleCS(${txId},'italic')"><i>I</i></button>
         <input class="ftsz" type="number" min="8" max="28" value="${cs.fontSize||12}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setCS(${txId},'fontSize',Math.max(8,Math.min(28,parseInt(this.value)||12)))" title="Font size (px)">
-      </div>
-      <div class="cxlbl">Text colour</div>
-      <div class="ftcolgrid">${TXTCOLS.map(c=>`<div class="ftcsw" style="background:${c}" onclick="event.stopPropagation();setCS(${txId},'color','${c}')"></div>`).join('')}</div>
-      <div class="cxlbl">Cell fill colour</div>
-      <div class="cgrid">${BGCOLS.map(c=>`<div class="csw" style="background:${c}" onclick="event.stopPropagation();setCS(${txId},'bgColor','${c}')"></div>`).join('')}</div>
-      <div class="cxsep"></div>
-      <div class="cxi" onclick="event.stopPropagation();clearCS(${txId})">✕ Clear formatting</div>
-      <div class="cxsep"></div>
-      <div class="cxi" onclick="closeCtx();openCellModal(${txId},'${escQ(catName)}','${ds}')">✏️ Edit entry</div>
-      <div class="cxi" onclick="closeCtx();openAddModal('${escQ(catName)}','${ds}')">＋ Add another here</div>`;
+      </div>`;
   } else {
     m.innerHTML=`
-      <div class="cxi" onclick="closeCtx();openAddModal('${escQ(catName)}','${ds}')">＋ Add entry here</div>`;
+      <div class="cxi" onclick="closeCtx();openAddModal('${escQ(catName)}','${ds}')"><span style="color:var(--green);font-weight:600;width:14px;display:inline-block;text-align:center">+</span> Add entry here</div>`;
   }
 }
 
@@ -1048,11 +1060,11 @@ async function setCatCol(catName,colour){
 function openCellModal(id,cat,date){
   const e=entries.find(x=>x.id===id);if(!e)return;
   document.getElementById('m-title').textContent=e.category+' — '+fmtDate(e.date);
-  document.getElementById('m-body').innerHTML=buildForm(e)+`<div class="dcbox" id="dcb">Are you sure? This cannot be undone.<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-sm btn-danger" onclick="confirmDel(${id})">Yes, delete</button><button class="btn btn-sm" onclick="document.getElementById('dcb').classList.remove('show')">Cancel</button></div></div>`;
+  document.getElementById('m-body').innerHTML=buildForm(e)+`<div class="dcbox" id="dcb">Are you sure? This cannot be undone.<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-sm btn-danger" onclick="confirmDel(${id})">Yes, delete</button><button class="btn btn-sm" onclick="document.getElementById('dcb').classList.remove('show')">Cancel</button></div></div><div id="m-toast" style="display:none;padding:7px 11px;background:var(--green-bg);color:var(--green);border-radius:5px;font-size:12px;margin-top:9px;font-family:'DM Mono',monospace"></div>`;
   document.getElementById('m-foot').innerHTML=`
     <button class="btn btn-sm" style="color:var(--red);border-color:#fca5a5" onclick="document.getElementById('dcb').classList.add('show')">Delete</button>
     <div style="flex:1"></div>
-    <button class="btn btn-sm btn-ghost" onclick="closeModal();openAddModal('${escQ(cat)}','${date}')">+ Add another</button>
+    <button class="btn btn-sm btn-ghost" onclick="addNewFromForm()" title="Save a new entry using the values above (this entry stays unchanged)">+ Add new</button>
     <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
     <button class="btn btn-sm btn-p" onclick="saveEntry(${id})">Save</button>`;
   document.getElementById('modal').classList.remove('hidden');
@@ -1109,7 +1121,36 @@ async function saveEntry(id){
     logAction('added',ne);
   }
   await saveE();closeModal();renderAll();
-  if(!document.getElementById('sidebar').classList.contains('hidden'))openCatSB(document.getElementById('sbTitle').textContent);
+  refreshSB();
+}
+
+// Save a new entry using whatever values are currently in the edit form.
+// The original entry being edited is untouched. Modal stays open with a brief toast.
+async function addNewFromForm(){
+  const cat=document.getElementById('m-cat').value;
+  const amt=parseFloat(document.getElementById('m-amt').value);
+  const date=document.getElementById('m-date').value;
+  const status=document.getElementById('m-stat').value;
+  const note=document.getElementById('m-note').value.trim();
+  if(!amt||amt<=0||!date){alert('Please fill in amount and date.');return;}
+  const catObj=gc(cat);
+  const type=catObj?catObj.type:'spend';
+  pushUndo();
+  const ne={id:Date.now(),type,category:cat,amount:amt,date,status,note};
+  entries.push(ne);
+  logAction('added',ne);
+  await saveE();
+  renderAll();
+  // Refresh sidebar if open
+  refreshSB();
+  // Toast inside modal (doesn't close it)
+  const toast=document.getElementById('m-toast');
+  if(toast){
+    toast.textContent=`+ Added: ${cat} · ${fmt(amt)} · ${fmtDate(date)}`;
+    toast.style.display='block';
+    clearTimeout(window._addToastTimer);
+    window._addToastTimer=setTimeout(()=>{toast.style.display='none';},2400);
+  }
 }
 
 async function confirmDel(id){
@@ -1119,21 +1160,27 @@ async function confirmDel(id){
   entries=entries.filter(x=>x.id!==id);
   delete cellStyles[id];
   await deleteEntryDB(id);
-  saveCS();closeModal();renderAll();closeSB();
+  saveCS();closeModal();renderAll();refreshSB();
 }
 function closeModal(){document.getElementById('modal').classList.add('hidden');}
 
 // ── Sidebar ──
-function openCatSB(catName){
-  const me_=me().filter(e=>e.category===catName).sort((a,b)=>a.date.localeCompare(b.date));
+// State tracks what the sidebar is currently showing so it can be refreshed after edits.
+let sbState=null; // {mode:'cat', catName} OR {mode:'day', catName, date}
+
+function refreshSB(){
+  if(!sbState||document.getElementById('sidebar').classList.contains('hidden'))return;
+  if(sbState.mode==='cat')openCatSB(sbState.catName);
+  else if(sbState.mode==='day')openDaySB(sbState.catName,sbState.date);
+}
+
+function renderSBEntries(list,catName){
+  // shared list-rendering used by both modes
   const cat=gc(catName);
-  document.getElementById('sidebar').classList.remove('hidden');
-  document.getElementById('sbTitle').textContent=catName;
-  let html='<div>';
-  if(!me_.length)html+='<p style="color:var(--text3);font-size:13px;padding:4px 0">No entries this month.</p>';
-  me_.forEach(e=>{
+  if(!list.length)return'<p style="color:var(--text3);font-size:13px;padding:4px 0">No entries.</p>';
+  return list.map(e=>{
     const d=new Date(e.date+'T00:00:00');
-    html+=`<div class="ecard" onclick="openCellModal(${e.id},'${escQ(catName)}','${e.date}')">
+    return`<div class="ecard" onclick="openCellModal(${e.id},'${escQ(catName)}','${e.date}')">
       <div class="ecmeta">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <span style="font-weight:500;font-size:12px">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}</span>
@@ -1144,12 +1191,59 @@ function openCatSB(catName){
       </div>
       <div class="ecamt ${e.type}">${e.type==='income'?'+':'-'}${fmt(e.amount)}</div>
     </div>`;
-  });
-  html+='</div>';
-  document.getElementById('sbBody').innerHTML=html;
-  document.getElementById('sbFoot').innerHTML=`<button class="btn btn-sm btn-p" onclick="openAddModal('${escQ(catName)}','')">+ Add entry</button>`;
+  }).join('');
 }
-function closeSB(){document.getElementById('sidebar').classList.add('hidden');}
+
+function buildSBHeader(title,addCallback){
+  return`
+    <h3 id="sbTitle">${title}</h3>
+    <button class="btn btn-sm btn-p" onclick="${addCallback}" style="padding:4px 9px;font-size:12px">+ Add entry</button>
+    <button class="btn btn-sm btn-ghost" onclick="closeSB()" style="padding:4px 8px">✕</button>`;
+}
+
+function buildSBSum(list){
+  if(!list.length)return'';
+  const inc=list.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+  const sp=list.filter(e=>e.type==='spend').reduce((s,e)=>s+e.amount,0);
+  let parts=[];
+  if(inc>0)parts.push(`<span style="color:var(--green)">+${fmt(inc)}</span>`);
+  if(sp>0)parts.push(`<span style="color:var(--red)">-${fmt(sp)}</span>`);
+  const net=inc-sp;
+  return`<div style="padding:9px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">${list.length} ${list.length===1?'entry':'entries'}</span>
+    <span style="flex:1"></span>
+    ${parts.join(' · ')}
+    ${parts.length>1?`<span style="color:var(--text2)">= <span style="color:${net>=0?'var(--green)':'var(--red)'};font-weight:500">${net>=0?'+':''}${fmt(net)}</span></span>`:''}
+  </div>`;
+}
+
+// Full-month, single-category view
+function openCatSB(catName){
+  sbState={mode:'cat',catName};
+  const me_=me().filter(e=>e.category===catName).sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('sidebar').classList.remove('hidden');
+  document.querySelector('#sidebar .sbh').innerHTML=buildSBHeader(catName,`openAddModal('${escQ(catName)}','')`);
+  document.getElementById('sbBody').innerHTML=buildSBSum(me_)+'<div style="padding:14px">'+renderSBEntries(me_,catName)+'</div>';
+  document.getElementById('sbFoot').innerHTML='';
+}
+
+// Day + category view — only entries on that specific date for that category
+function openDaySB(catName,date){
+  sbState={mode:'day',catName,date};
+  const list=entries.filter(e=>e.category===catName&&e.date===date).sort((a,b)=>a.id-b.id);
+  const d=new Date(date+'T00:00:00');
+  const DOW=['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const title=`${d.getDate()} ${DOW[d.getDay()]} · ${catName}`;
+  document.getElementById('sidebar').classList.remove('hidden');
+  document.querySelector('#sidebar .sbh').innerHTML=buildSBHeader(title,`openAddModal('${escQ(catName)}','${date}')`);
+  document.getElementById('sbBody').innerHTML=buildSBSum(list)+'<div style="padding:14px">'+renderSBEntries(list,catName)+'</div>';
+  document.getElementById('sbFoot').innerHTML='';
+}
+
+function closeSB(){
+  document.getElementById('sidebar').classList.add('hidden');
+  sbState=null;
+}
 
 // ── Copy previous month ──
 async function copyPrevMonth(){
@@ -1157,10 +1251,220 @@ async function copyPrevMonth(){
   const prev=entries.filter(e=>{const d=new Date(e.date+'T00:00:00');return d.getMonth()===pm&&d.getFullYear()===py;});
   if(!prev.length){alert('No entries found in the previous month.');return;}
   pushUndo();
-  const added=prev.map(e=>({...e,id:Date.now()+Math.random(),date:`${cy}-${String(cm+1).padStart(2,'0')}-${e.date.slice(8,10)}`,status:'forecast'}));
+  // Use base+offset for unique integer IDs (Math.random fractions collide after Math.round in saveE)
+  const base=Date.now();
+  const added=prev.map((e,i)=>({...e,id:base+i,date:`${cy}-${String(cm+1).padStart(2,'0')}-${e.date.slice(8,10)}`,status:'forecast'}));
   entries.push(...added);
   logAction('copied',{category:'all categories',amount:added.length,note:`${added.length} entries from ${MONTHS[pm]} ${py}`});
   await saveE();renderAll();
+}
+
+// Get a sorted list of (month,year) pairs that have entries, excluding the current view
+function getSourceMonths(){
+  const seen=new Map();
+  entries.forEach(e=>{
+    const d=new Date(e.date+'T00:00:00');
+    const m=d.getMonth(),y=d.getFullYear();
+    if(m===cm&&y===cy)return; // skip current view
+    const key=y*12+m;
+    if(!seen.has(key))seen.set(key,{m,y,key});
+  });
+  // sort newest first
+  return Array.from(seen.values()).sort((a,b)=>b.key-a.key);
+}
+
+// Dialog: choose source month + categories to copy
+function openCopyDialog(){
+  const sources=getSourceMonths();
+  if(!sources.length){alert('No other months have entries to copy from.');return;}
+
+  // Default selection: immediately previous month if it has data; else most recent month with data
+  let pm=cm-1,py=cy;if(pm<0){pm=11;py--;}
+  const prevKey=py*12+pm;
+  const defaultSource=sources.find(s=>s.key===prevKey)||sources[0];
+
+  document.getElementById('m-title').textContent='Copy entries from another month';
+  document.getElementById('m-body').innerHTML=`
+    <div class="fg">
+      <label class="fl">Source month</label>
+      <select class="fc" id="cp-src" onchange="updateCopyCats()">
+        ${sources.map(s=>`<option value="${s.key}" ${s.key===defaultSource.key?'selected':''}>${MONTHS[s.m]} ${s.y}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg">
+      <label class="fl">Categories to copy</label>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button type="button" class="btn btn-sm" onclick="copyDialogToggleAll(true)">All</button>
+        <button type="button" class="btn btn-sm" onclick="copyDialogToggleAll(false)">None</button>
+      </div>
+      <div id="cp-cats" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:8px"></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--text2);font-style:italic;margin-top:6px">Existing entries in ${MONTHS[cm]} ${cy} for the selected categories will be overwritten.</div>
+  `;
+  document.getElementById('m-foot').innerHTML=`
+    <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-sm btn-p" onclick="runCopyFromDialog()">Copy</button>`;
+  document.getElementById('modal').classList.remove('hidden');
+  updateCopyCats();
+}
+
+function updateCopyCats(){
+  const sel=document.getElementById('cp-src');
+  if(!sel)return;
+  const key=parseInt(sel.value);
+  const y=Math.floor(key/12),m=key%12;
+  const src=entries.filter(e=>{const d=new Date(e.date+'T00:00:00');return d.getMonth()===m&&d.getFullYear()===y;});
+  // Categories present in source, in the order they appear in `cats`
+  const presentSet=new Set(src.map(e=>e.category));
+  const catList=cats.filter(c=>presentSet.has(c.name));
+  // counts
+  const counts={};
+  src.forEach(e=>{counts[e.category]=(counts[e.category]||0)+1;});
+  const html=catList.map(c=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;font-size:13px;border-radius:4px">
+      <input type="checkbox" class="cp-cat-cb" value="${escQ(c.name).replace(/"/g,'&quot;')}" checked style="width:16px;height:16px;cursor:pointer">
+      <span class="spip ${c.scope}"></span>
+      <span style="flex:1">${c.name}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3)">${counts[c.name]} ${counts[c.name]===1?'entry':'entries'}</span>
+    </label>
+  `).join('');
+  document.getElementById('cp-cats').innerHTML=html;
+}
+function copyDialogToggleAll(state){
+  document.querySelectorAll('.cp-cat-cb').forEach(cb=>{cb.checked=state;});
+}
+
+async function runCopyFromDialog(){
+  const sel=document.getElementById('cp-src');
+  const key=parseInt(sel.value);
+  const sy=Math.floor(key/12),sm=key%12;
+  const checked=Array.from(document.querySelectorAll('.cp-cat-cb')).filter(cb=>cb.checked).map(cb=>cb.value);
+  if(!checked.length){alert('Pick at least one category.');return;}
+
+  const src=entries.filter(e=>{
+    const d=new Date(e.date+'T00:00:00');
+    return d.getMonth()===sm&&d.getFullYear()===sy&&checked.includes(e.category);
+  });
+  if(!src.length){alert('No entries to copy.');closeModal();return;}
+
+  // Existing entries to overwrite (same categories, current month)
+  const existing=entries.filter(e=>{
+    const d=new Date(e.date+'T00:00:00');
+    return d.getMonth()===cm&&d.getFullYear()===cy&&checked.includes(e.category);
+  });
+
+  pushUndo();
+
+  // Delete existing
+  if(existing.length){
+    const ids=existing.map(e=>e.id);
+    entries=entries.filter(e=>!ids.includes(e.id));
+    ids.forEach(id=>{delete cellStyles[id];});
+    await deleteEntriesDB(ids);
+    saveCS();
+  }
+
+  // Insert copies into current month
+  const base=Date.now();
+  const days=new Date(cy,cm+1,0).getDate(); // current month's day count
+  const added=src.map((e,i)=>{
+    // Clamp source day to current month's day count (e.g. copying Jan 31 → Feb 28)
+    const srcDay=Math.min(parseInt(e.date.slice(8,10),10),days);
+    return{...e,id:base+i,date:`${cy}-${String(cm+1).padStart(2,'0')}-${String(srcDay).padStart(2,'0')}`,status:'forecast'};
+  });
+  entries.push(...added);
+  logAction('copied',{
+    category:checked.length===1?checked[0]:`${checked.length} categories`,
+    amount:added.length,
+    note:`${added.length} entries from ${MONTHS[sm]} ${sy}${existing.length?` (overwrote ${existing.length})`:''}`
+  });
+  await saveE();
+  closeModal();
+  renderAll();
+}
+
+// Copy a single category's entries from the immediately previous month into the current month,
+// overwriting any existing current-month entries for that category. Undoable.
+async function copyCategoryFromPrev(catName){
+  let pm=cm-1,py=cy;if(pm<0){pm=11;py--;}
+  const prev=entries.filter(e=>{
+    if(e.category!==catName)return false;
+    const d=new Date(e.date+'T00:00:00');
+    return d.getMonth()===pm&&d.getFullYear()===py;
+  });
+  if(!prev.length){alert(`No "${catName}" entries found in ${MONTHS[pm]} ${py}.`);return;}
+
+  // Existing entries in current month for this category — to be overwritten
+  const existing=entries.filter(e=>{
+    if(e.category!==catName)return false;
+    const d=new Date(e.date+'T00:00:00');
+    return d.getMonth()===cm&&d.getFullYear()===cy;
+  });
+
+  pushUndo();
+
+  // Delete existing for that category in current month
+  if(existing.length){
+    const ids=existing.map(e=>e.id);
+    entries=entries.filter(e=>!ids.includes(e.id));
+    ids.forEach(id=>{delete cellStyles[id];});
+    await deleteEntriesDB(ids);
+    saveCS();
+  }
+
+  // Insert prev-month copies, remapped to current month, marked forecast
+  const base=Date.now();
+  const days=new Date(cy,cm+1,0).getDate();
+  const added=prev.map((e,i)=>{
+    const srcDay=Math.min(parseInt(e.date.slice(8,10),10),days);
+    return{...e,id:base+i,date:`${cy}-${String(cm+1).padStart(2,'0')}-${String(srcDay).padStart(2,'0')}`,status:'forecast'};
+  });
+  entries.push(...added);
+  logAction('copied',{category:catName,amount:added.length,note:`${added.length} entries from ${MONTHS[pm]} ${py}${existing.length?` (overwrote ${existing.length})`:''}`});
+  await saveE();
+  renderAll();
+}
+
+// ── Clear functions (all undoable) ──
+async function clearAllMonth(){
+  const me_=me();
+  if(!me_.length){alert('No entries to clear in this month.');return;}
+  if(!confirm(`Clear all ${me_.length} entries in ${MONTHS[cm]} ${cy}?\n\nThis can be undone.`))return;
+  pushUndo();
+  const ids=me_.map(e=>e.id);
+  logAction('deleted',{category:'all categories',amount:me_.length,note:`cleared ${me_.length} entries from ${MONTHS[cm]} ${cy}`});
+  entries=entries.filter(e=>!ids.includes(e.id));
+  ids.forEach(id=>{delete cellStyles[id];});
+  await deleteEntriesDB(ids);
+  saveCS();renderAll();closeSB();
+}
+
+async function clearCategoryRow(catName){
+  // No confirmation — undo covers it
+  const me_=me().filter(e=>e.category===catName);
+  if(!me_.length)return;
+  pushUndo();
+  const ids=me_.map(e=>e.id);
+  logAction('deleted',{category:catName,amount:me_.length,note:`cleared row (${me_.length} entries)`});
+  entries=entries.filter(e=>!(e.category===catName&&ids.includes(e.id)));
+  ids.forEach(id=>{delete cellStyles[id];});
+  await deleteEntriesDB(ids);
+  saveCS();renderAll();
+  // If sidebar was showing this category in either mode, just refresh (will show empty state)
+  if(sbState&&sbState.catName===catName)refreshSB();
+}
+
+async function clearCell(id){
+  // No confirmation — undo covers it
+  const e=entries.find(x=>x.id===id);
+  if(!e)return;
+  pushUndo();
+  logAction('deleted',e);
+  entries=entries.filter(x=>x.id!==id);
+  delete cellStyles[id];
+  await deleteEntryDB(id);
+  saveCS();renderAll();refreshSB();
 }
 
 // ── Categories ──
