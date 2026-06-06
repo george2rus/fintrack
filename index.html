@@ -607,38 +607,55 @@ function updateUserIndicator(session){
 }
 
 // Boot sequence:
-// 1. Check existing session
-// 2. If no session, show login screen
-// 3. If session exists, hide login, load data, render
+// 1. Register listener for sign-in/sign-out events (lightweight only — no Supabase data calls inside!)
+// 2. Check existing session
+// 3. If no session, show login. If session, run loadAll + render.
+//
+// IMPORTANT: We deliberately do NOT call loadAll() or any supa.from() inside onAuthStateChange.
+// That handler runs while the supabase-js internal auth lock is held — any Supabase data call
+// from within it deadlocks (the data call also needs the lock to attach the JWT). This caused
+// the "Connecting to database…" hang on page reload.
 async function bootAuth(){
-  // Listen for any auth state changes (initial session, sign-in, sign-out, token refresh)
-  supa.auth.onAuthStateChange(async (event,session)=>{
+  // Listener handles state CHANGES — sign-in after login form, sign-out button.
+  // For the INITIAL session on page load, we handle that synchronously below via getSession().
+  supa.auth.onAuthStateChange((event,session)=>{
     _currentSession=session;
     updateUserIndicator(session);
-    if(event==='SIGNED_OUT'||!session){
-      // Wipe in-memory data so it's not visible after sign-out
+    if(event==='SIGNED_OUT'){
+      // Sign-out path: wipe in-memory data, reset UI, show login.
       entries=[];cellStyles={};history=[];
       _appBooted=false;
       showLogin();
       return;
     }
-    if(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED'){
-      if(!_appBooted){
-        _appBooted=true;
-        hideLogin();
-        await loadAll();
-        renderAll();
-      }
+    if(event==='SIGNED_IN'&&session&&!_appBooted){
+      // Fired when user submits the login form. Defer the actual data load so we don't
+      // hold the auth lock during Supabase reads.
+      setTimeout(()=>{bootApp();},0);
     }
+    // TOKEN_REFRESHED / USER_UPDATED / INITIAL_SESSION are intentionally ignored here —
+    // initial-session loading is handled by the explicit getSession() call below.
   });
 
-  // Manually check the initial session — onAuthStateChange usually fires INITIAL_SESSION,
-  // but if it doesn't (rare), fall back to showing login after a short delay.
+  // Initial check — drives the first paint
   const {data:{session}}=await supa.auth.getSession();
-  if(!session){
+  if(session){
+    _currentSession=session;
+    updateUserIndicator(session);
+    await bootApp();
+  } else {
     showLogin();
   }
-  // If session exists, onAuthStateChange will handle it.
+}
+
+// Run the app: load data from Supabase and render. Safe to call from anywhere
+// EXCEPT inside an onAuthStateChange callback (see comment in bootAuth).
+async function bootApp(){
+  if(_appBooted)return;
+  _appBooted=true;
+  hideLogin();
+  await loadAll();
+  renderAll();
 }
 
 
