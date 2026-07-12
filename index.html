@@ -11,9 +11,9 @@
 <!-- Quill rich text editor (v1.0.4 — Notes tab) -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-<!-- quill-better-table for resizable tables in Notes (v1.0.5) -->
-<link href="https://cdn.jsdelivr.net/npm/quill-better-table@1.2.10/dist/quill-better-table.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill-better-table@1.2.10/dist/quill-better-table.js"></script>
+<!-- quill-table-up for resizable tables in Notes (v1.0.7.1: replaces quill-better-table which was Quill 1.x only) -->
+<link href="https://esm.sh/quill-table-up@3.3.0/index.css" rel="stylesheet">
+<link href="https://esm.sh/quill-table-up@3.3.0/table-creator.css" rel="stylesheet">
 <style>
 :root{
   --bg:#f4f3ef;--surface:#fff;--surface2:#f9f8f5;--border:#e2e0d8;--border2:#ccc9be;
@@ -140,11 +140,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   :root{--col-cat:92px;--col-total:56px;--col-prev:52px;--row-h:38px}
   /* v1.0.7: hide desktop items, show hamburger */
   .desktop-only{display:none!important}
-  .hamburger-btn{display:inline-flex}
-  .topbar{height:auto;padding:6px 10px;gap:6px;flex-wrap:wrap;overflow:visible}
-  .mnav{gap:0}
-  .mnav button{padding:4px 6px;font-size:14px}
-  .mlbl{font-size:11px;min-width:82px}
+  .hamburger-btn{display:inline-flex;padding:4px 7px;gap:5px;flex-shrink:1;min-width:0}
+  .hamburger-icon{font-size:16px}
+  .hamburger-label{font-size:12px;max-width:26vw}
+  /* Single-row compact topbar */
+  .topbar{height:auto;padding:5px 8px;gap:5px;flex-wrap:nowrap;overflow:hidden;min-height:44px}
+  .mnav{gap:0;flex-shrink:0}
+  .mnav button{padding:3px 3px;font-size:14px}
+  .mlbl{font-size:10.5px;min-width:44px;letter-spacing:0;padding:0 2px}
   /* Old mobile tabbar dropdown replaced by hamburger — hide it */
   .tabbar-mobile{display:none!important}
   .tabbar{display:none}
@@ -155,8 +158,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   .iebtn{width:30px;height:30px;font-size:14px}
   .list-entry{padding:13px 12px}
   .day-num{font-size:24px}
-  /* Smaller wrapped category names on mobile */
-  .cc{font-size:11px;white-space:normal;line-height:1.15;padding:4px 6px;font-weight:500}
+  /* v1.0.7.2: allow the category column to actually shrink to the dragged width */
+  .stbl{min-width:0!important;table-layout:auto}
+  .stbl thead th.ch{width:var(--col-cat)!important;min-width:0!important;max-width:var(--col-cat)!important}
+  /* Category names: wrap on spaces AND break long words if needed */
+  .cc{font-size:11px;white-space:normal;line-height:1.15;padding:4px 6px;font-weight:500;overflow-wrap:anywhere;word-break:break-word;overflow:hidden;max-width:var(--col-cat);min-width:0}
   .cc .spip{width:5px;height:5px;margin-right:4px;vertical-align:middle}
   .tc-end{font-size:12px;padding:0 5px}
   .pc-end{font-size:10px;padding:0 5px}
@@ -168,13 +174,60 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   tr.rdayrow td .dayname{display:none}
   tr.rdayrow td .daynum{font-size:12px}
   /* Buttons in topbar sized down */
-  .topbar .btn.btn-sm{padding:5px 8px;font-size:11px}
-  .btn.btn-p{padding:5px 8px;font-size:11.5px}
+  .topbar .btn.btn-sm{padding:3px 6px;font-size:10.5px;flex-shrink:0}
+  .btn.btn-p{padding:3px 6px;font-size:11px}
+  /* + Add entry becomes icon-only "+" on mobile */
+  .topbar-add-btn{min-width:26px;padding:3px 8px!important;font-size:14px!important;font-weight:600}
+  /* Show mobile labels, hide desktop labels */
+  .lbl-desktop{display:none}
+  .lbl-mobile{display:inline}
+  /* Zoom group */
+  .zoom-group{display:inline-flex;align-items:center;gap:1px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0 2px}
+  .zoom-btn{padding:2px 6px!important;font-size:14px!important;font-weight:600;border:none!important;background:transparent!important;line-height:1;color:var(--text2)}
+  .zoom-btn:hover{background:var(--bg)!important}
+  .zoom-readout{font-family:'DM Mono',monospace;font-size:9.5px;color:var(--text2);min-width:22px;text-align:center;padding:0 1px;white-space:nowrap}
   /* v1.0.7: compact mobile per-day disposable strip */
   tr.rb-mobile-strip td{height:20px!important;padding:0 2px!important;font-size:9.5px;font-weight:600;text-align:center;background:var(--disp-bg)!important;border:1px solid var(--border);vertical-align:middle}
   tr.rb-mobile-strip td.cc{font-size:9px;font-weight:500;color:var(--blue);text-align:left;padding:0 4px!important;border-left:2px solid var(--blue)!important;background:var(--disp-bg)!important;white-space:nowrap}
   tr.rb-mobile-strip td.today-col{background:var(--today-bg)!important;color:var(--today)!important}
+  /* v1.0.7.2: force stack Month-end Split cards vertically on mobile */
+  #view-split{grid-template-columns:1fr!important;gap:12px;padding:12px}
+  .scard{padding:14px}
+  .src{padding:16px}
+  .srcamt{font-size:28px;margin-bottom:14px}
+  .srsave{flex-direction:column;gap:8px}
+  .srsi{padding:8px 12px}
+  /* v1.0.7.2: vs Last Month responsive columns */
+  #view-vs{padding:12px;gap:12px}
+  .vs-summary{grid-template-columns:1fr!important;gap:10px}
+  .vs-sum-card{padding:12px}
+  .vs-table{font-size:11px}
+  .vs-table th,.vs-table td{padding:6px 5px!important;font-size:11px}
+  .vs-table th:first-child,.vs-table td:first-child{max-width:100px;word-break:break-word}
+  /* Categories tab compaction */
+  #view-cats{padding:12px}
+  .cw{max-width:100%}
+  .crow{padding:8px 10px;gap:6px;flex-wrap:wrap}
+  .cni{font-size:12px;min-width:80px}
+  .stog{flex-shrink:0}
+  .sb2{font-size:10px;padding:3px 7px}
+  .cat-vis-btn{font-size:10px;padding:3px 6px;min-width:0}
+  /* History tab compaction */
+  #view-hist{padding:12px}
+  .hist-table{font-size:11px}
+  .hist-table th,.hist-table td{padding:6px 8px!important;font-size:11px!important}
+  /* Add entry form */
+  #view-entry{padding:12px}
+  .efw{padding:16px}
+  /* Notes tab */
+  #view-notes{flex-direction:column}
+  .notes-list{width:100%;min-width:0;max-height:180px}
+  .notes-pane{border-top:1px solid var(--border)}
 }
+/* Desktop: hide mobile-only labels, hide zoom + mobile-only wrappers */
+.lbl-mobile{display:none}
+.lbl-desktop{display:inline}
+.zoom-group{display:none} /* shown on mobile only via media query */
 /* Desktop shows real tabbar, not the mobile one */
 .tabbar-mobile{display:none}
 
@@ -537,12 +590,18 @@ textarea.fc{resize:vertical;min-height:52px}
     <button onclick="changeMonth(1)">›</button>
   </div>
   <div class="sep desktop-only"></div>
-  <button class="btn btn-sm btn-p" onclick="openAddModal('','')" title="Add entry">+ Add entry</button>
+  <button class="btn btn-sm btn-p topbar-add-btn" onclick="openAddModal('','')" title="Add entry"><span class="lbl-desktop">+ Add entry</span><span class="lbl-mobile">+</span></button>
   <button class="btn btn-sm btn-ghost desktop-only" id="undoBtn" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
   <button class="btn btn-sm btn-ghost desktop-only" id="redoBtn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" disabled>↪ Redo</button>
   <button class="btn btn-sm desktop-only" id="clearAllBtn" onclick="clearAllMonth()" title="Clear all entries in this month" style="color:var(--red);border-color:#fca5a5">⊘ Clear all</button>
-  <button class="btn btn-sm btn-ghost" id="viewModeBtn" onclick="toggleViewMode()" title="Switch between grid and list view">☰ List</button>
-  <button class="btn btn-sm btn-ghost" id="statsBtn" onclick="toggleStatsPanel(event)" title="Show summary stats and recent action">Stats ▾</button>
+  <button class="btn btn-sm btn-ghost topbar-view-btn" id="viewModeBtn" onclick="toggleViewMode()" title="Switch between grid and list view">☰ List</button>
+  <button class="btn btn-sm btn-ghost topbar-stats-btn" id="statsBtn" onclick="toggleStatsPanel(event)" title="Show summary stats and recent action"><span class="lbl-desktop">Stats ▾</span><span class="lbl-mobile">Σ▾</span></button>
+  <!-- v1.0.7.2: zoom controls (mobile grid; hidden on desktop and in list mode) -->
+  <div class="zoom-group" id="zoomGroup">
+    <button class="btn btn-sm btn-ghost zoom-btn" onclick="adjustZoom(-1)" title="Zoom out">−</button>
+    <span class="zoom-readout" id="zoomReadout">100%</span>
+    <button class="btn btn-sm btn-ghost zoom-btn" onclick="adjustZoom(1)" title="Zoom in">+</button>
+  </div>
   <div class="sep desktop-only"></div>
   <span class="desktop-only" style="font-size:12px;color:var(--text3)" id="ecnt"></span>
   <div class="ta desktop-only">
@@ -1134,71 +1193,101 @@ function showEditorState(){
   document.getElementById('notesDeleteBtn').style.display='inline-block';
 }
 
-function ensureEditor(){
-  if(notesEditorReady)return;
-  if(typeof Quill==='undefined'){
-    console.error('Quill not loaded');
-    return;
-  }
-
-  // v1.0.5: register quill-better-table if available
-  let betterTableAvailable=false;
-  if(typeof QuillBetterTable!=='undefined'){
-    try{
-      Quill.register({'modules/better-table':QuillBetterTable},true);
-      betterTableAvailable=true;
-    }catch(e){
-      console.error('Could not register quill-better-table:',e);
+// v1.0.7.1: try to load quill-table-up (async, resizable tables); fallback to Quill 2 native tables (no resize).
+// Returns object describing what's available: { TableUp, TableResizeLine, TableMenuContextmenu } or null.
+async function _loadTableUpModule(){
+  try{
+    // Dynamic ESM import via esm.sh (which converts npm packages to browser-friendly ESM).
+    const mod=await import('https://esm.sh/quill-table-up@3.3.0');
+    if(!mod||!mod.default){
+      console.warn('quill-table-up loaded but has no default export.');
+      return null;
     }
-  } else {
-    console.warn('QuillBetterTable not loaded — tables will not be resizable.');
+    return{
+      TableUp:mod.default,
+      TableResizeLine:mod.TableResizeLine,
+      TableMenuContextmenu:mod.TableMenuContextmenu,
+      defaultCustomSelect:mod.defaultCustomSelect
+    };
+  }catch(e){
+    console.warn('quill-table-up failed to load (falling back to Quill native tables):',e);
+    return null;
   }
-
-  const modulesConfig={
-    toolbar:{
-      container:[
-        [{header:[1,2,3,false]}],
-        ['bold','italic','underline','strike'],
-        [{list:'ordered'},{list:'bullet'},{list:'check'}],
-        [{color:[]},{background:[]}],
-        ['blockquote','code-block'],
-        ['link'],
-        ...(betterTableAvailable?[['insert-table']]:[]),
-        ['clean']
-      ],
-      ...(betterTableAvailable?{handlers:{'insert-table':function(){
-        const tableModule=notesEditor.getModule('better-table');
-        if(tableModule)tableModule.insertTable(3,3);
-      }}}:{})
-    }
-  };
-  if(betterTableAvailable){
-    modulesConfig['better-table']={operationMenu:{items:{unmergeCells:{text:'Unmerge cells'}}}};
-    modulesConfig.keyboard={bindings:QuillBetterTable.keyboardBindings};
-  }
-
-  notesEditor=new Quill('#notesEditor',{
-    theme:'snow',
-    placeholder:'Start writing… use the toolbar above for formatting, checkboxes, headings.',
-    modules:modulesConfig
-  });
-
-  // Label the Insert Table button (Quill renders a blank button for custom toolbar items)
-  if(betterTableAvailable){
-    const btn=document.querySelector('.ql-toolbar .ql-insert-table');
-    if(btn){btn.innerHTML='⌗';btn.title='Insert 3×3 table';}
-  }
-
-  notesEditor.on('text-change',()=>{
-    if(_suppressEditorChange)return;
-    if(!currentNoteId)return;
-    scheduleNoteContentSave();
-  });
-  notesEditorReady=true;
 }
 
-function openNotesTab(){
-  ensureEditor();
+// Signature was sync; keep it callable both sync and awaitable.
+// Returns a promise that resolves when the editor + optional table plugin are ready.
+let _ensureEditorPromise=null;
+function ensureEditor(){
+  if(notesEditorReady)return Promise.resolve();
+  if(_ensureEditorPromise)return _ensureEditorPromise;
+  _ensureEditorPromise=(async()=>{
+    if(typeof Quill==='undefined'){
+      console.error('Quill not loaded');
+      return;
+    }
+    // Attempt to load quill-table-up
+    const tu=await _loadTableUpModule();
+    let tableUpAvailable=false;
+    if(tu){
+      try{
+        Quill.register({[`modules/${tu.TableUp.moduleName}`]:tu.TableUp},true);
+        tableUpAvailable=true;
+      }catch(e){
+        console.error('Could not register quill-table-up:',e);
+        tableUpAvailable=false;
+      }
+    }
+
+    // Build toolbar. Native Quill 2 tables (`{table:...}`) don't have a picker; quill-table-up does.
+    const toolbarContainer=[
+      [{header:[1,2,3,false]}],
+      ['bold','italic','underline','strike'],
+      [{list:'ordered'},{list:'bullet'},{list:'check'}],
+      [{color:[]},{background:[]}],
+      ['blockquote','code-block'],
+      ['link'],
+      ['clean']
+    ];
+    if(tableUpAvailable){
+      // Insert a table picker button just before 'clean'
+      toolbarContainer.splice(toolbarContainer.length-1,0,[{[tu.TableUp.toolName]:[]}]);
+    }
+
+    const modulesConfig={toolbar:{container:toolbarContainer}};
+    if(tableUpAvailable){
+      modulesConfig[tu.TableUp.moduleName]={
+        customSelect:tu.defaultCustomSelect,
+        modules:[
+          ...(tu.TableResizeLine?[{module:tu.TableResizeLine}]:[]),
+          ...(tu.TableMenuContextmenu?[{module:tu.TableMenuContextmenu}]:[])
+        ]
+      };
+    } else {
+      // Fallback: Quill 2 native tables (no column resize, but at least tables paste correctly)
+      modulesConfig.table=true;
+    }
+
+    notesEditor=new Quill('#notesEditor',{
+      theme:'snow',
+      placeholder:'Start writing… use the toolbar above for formatting, checkboxes, headings.'+(tableUpAvailable?' Click the table icon in the toolbar to insert a resizable table.':''),
+      modules:modulesConfig
+    });
+
+    notesEditor.on('text-change',()=>{
+      if(_suppressEditorChange)return;
+      if(!currentNoteId)return;
+      scheduleNoteContentSave();
+    });
+    notesEditorReady=true;
+    // Log which mode we're in — helpful for debugging via console.
+    console.info('Notes editor ready. Table support: '+(tableUpAvailable?'quill-table-up (resizable)':'Quill native (no resize)'));
+  })();
+  return _ensureEditorPromise;
+}
+
+async function openNotesTab(){
+  await ensureEditor();
   renderNotesList();
   if(currentNoteId&&notes.find(n=>n.id===currentNoteId)){
     selectNote(currentNoteId);
@@ -1617,7 +1706,12 @@ function renderStatsPanel(){
 
 // ── Render ──
 function renderAll(){
-  document.getElementById('mlbl').textContent=MONTHS[cm].toUpperCase()+' '+cy;
+  // v1.0.7.2: compact month label on mobile ("Jul '26"), full on desktop ("JULY 2026")
+  const mlblEl=document.getElementById('mlbl');
+  if(mlblEl){
+    const compact=_isMobileViewport();
+    mlblEl.textContent=compact?(MONTHS[cm].slice(0,3)+" '"+String(cy).slice(2)):(MONTHS[cm].toUpperCase()+' '+cy);
+  }
   renderStats();
   if(viewMode==='list'){renderList();}else{renderSheet();}
   renderRecentStrip();
@@ -1952,16 +2046,53 @@ function attachCatDragEvents(){
   inner.addEventListener('touchstart',onDown,{passive:false});
 }
 
+// v1.0.7.2: master-view zoom (mobile only). Applies CSS `zoom` to #masterBody. Persisted per device.
+const ZOOM_STORAGE_KEY='ft_zoom_v1';
+const ZOOM_MIN=50, ZOOM_MAX=200, ZOOM_STEP=10;
+let currentZoom=100;
+function loadStoredZoom(){
+  try{
+    const v=parseInt(localStorage.getItem(ZOOM_STORAGE_KEY),10);
+    if(!isNaN(v)&&v>=ZOOM_MIN&&v<=ZOOM_MAX)return v;
+  }catch(e){}
+  return 100;
+}
+function applyZoom(z){
+  currentZoom=z;
+  const mb=document.getElementById('masterBody');
+  if(mb)mb.style.zoom=(z/100);
+  const r=document.getElementById('zoomReadout');
+  if(r)r.textContent=z+'%';
+  try{localStorage.setItem(ZOOM_STORAGE_KEY,String(z));}catch(e){}
+  // Category drag handle position depends on layout — refresh it
+  setTimeout(()=>positionCatDragHandle(),20);
+}
+function adjustZoom(dir){
+  let z=currentZoom+(dir*ZOOM_STEP);
+  z=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,z));
+  if(z===currentZoom)return;
+  applyZoom(z);
+}
+
 function toggleViewMode(){
   viewMode=viewMode==='grid'?'list':'grid';
   applyViewMode();
   if(viewMode==='list'){
     expandedEmptyDays.clear();
     renderList();
-    // Scroll today into view if it's the current month
+    // Scroll today into view — but only within listWrap, never the ancestor page.
+    // Using scrollIntoView({block:'center'}) was scrolling ancestor flex containers on
+    // some mobile browsers, pushing the topbar off screen.
     setTimeout(()=>{
-      const todayEl=document.querySelector('#listWrap .day-block.today');
-      if(todayEl)todayEl.scrollIntoView({block:'center',behavior:'auto'});
+      const wrap=document.getElementById('listWrap');
+      const todayEl=wrap?wrap.querySelector('.day-block.today'):null;
+      if(wrap&&todayEl){
+        // Manually compute scroll offset relative to listWrap
+        const wrapRect=wrap.getBoundingClientRect();
+        const todayRect=todayEl.getBoundingClientRect();
+        const delta=(todayRect.top-wrapRect.top)-(wrap.clientHeight/2)+(todayEl.offsetHeight/2);
+        wrap.scrollTop+=delta;
+      }
     },50);
   } else {
     renderSheet();
@@ -3547,6 +3678,8 @@ window.addEventListener('beforeunload',()=>{
 // Topbar "Elena sends you" works immediately after loadAll() because computeSplit() reads from in-memory splitCfg.
 // v1.0.6: apply initial view mode (mobile default = list) to DOM before first render
 applyViewMode();
+// v1.0.7.2: restore persisted zoom
+applyZoom(loadStoredZoom());
 // v1.0.7: re-render on viewport changes (orientation switch, window resize) so the grid
 // reflows between desktop/mobile layouts. Debounced to avoid excessive redraws while dragging.
 let _resizeTimer=null;
