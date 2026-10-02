@@ -83,6 +83,39 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .selbar.show{opacity:1;pointer-events:auto}
 .selbar-del{background:#dc2626;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer}
 .selbar-del:hover{background:#b91c1c}
+/* v1.0.9: floating cell editor */
+.cell-editor{position:fixed;z-index:450;width:262px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--surface);border:2px solid var(--blue);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.22);padding:9px;display:flex;flex-direction:column;gap:7px;font-family:'DM Sans',sans-serif}
+.cell-editor.hidden{display:none}
+.ced-hdr{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px}
+.ced-cat{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ced-new{font-size:9px;background:var(--green);color:#fff;padding:1px 6px;border-radius:7px;margin-right:6px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.04em;vertical-align:1px}
+.ced-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);white-space:nowrap}
+.ced-row{display:flex;align-items:center;gap:2px}
+.ced-amt{flex:1;min-width:0;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:17px;font-weight:600;text-align:right;padding:5px 8px;border:1px solid var(--border2);border-radius:5px;outline:none;background:var(--surface);color:var(--text)}
+.ced-amt.invalid{border-color:var(--red);background:var(--red-bg)}
+.ced-stat .to{padding:5px 8px}
+.ced-note{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid var(--border2);border-radius:5px;font-size:13px;outline:none;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text)}
+.ced-amt:focus,.ced-note:focus{border-color:var(--blue)}
+.ced-actions{display:flex;align-items:center;gap:6px}
+.ced-del{color:var(--red);border-color:#fca5a5}
+.ce-anchor{outline:2px solid var(--blue);outline-offset:-2px}
+.dc .cadd{cursor:pointer}
+/* v1.0.9: weekly summary in the category side panel */
+.wk{border:1px solid var(--border);border-radius:7px;margin-bottom:6px;overflow:hidden;background:var(--surface)}
+.wk.cur{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue-bg)}
+.wk-hdr{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none}
+.wk-hdr:hover{background:var(--bg)}
+.wk-chev{color:var(--text3);font-size:11px;width:10px;flex-shrink:0}
+.wk-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.wk-lbl{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-lbl b{color:var(--text);font-weight:600}
+.wk-now{font-size:9px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:7px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.04em;margin-left:6px}
+.wk-bar{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.wk-bar div{height:100%;border-radius:3px;opacity:.75}
+.wk-tot{text-align:right;font-family:'DM Mono',monospace;font-size:13px;font-weight:500;flex-shrink:0}
+.wk-cnt{font-size:10px;color:var(--text3);font-weight:400;margin-top:1px}
+.wk-body{padding:8px 10px 4px;border-top:1px solid var(--border);background:var(--surface2)}
+.wk-empty{font-size:12px;color:var(--text3);font-style:italic;padding:2px 0 6px}
 .iebtn.ie-del{background:transparent;color:var(--text3);font-size:12px}
 .iebtn.ie-del:hover{color:var(--red);background:var(--red-bg)}
 /* v1.0.8: quick notes side panel */
@@ -877,6 +910,7 @@ textarea.fc{resize:vertical;min-height:52px}
 <div class="ctx hidden" id="ctx"></div>
 
 <!-- Selection bar -->
+<div class="cell-editor hidden" id="cellEditor"></div>
 <div class="selbar" id="selbar"></div>
 
 <script>
@@ -2544,6 +2578,7 @@ function toggleViewMode(){
 
 function renderList(){
   if(viewMode!=='list')return;
+  closeCellEditor();
   const wrap=document.getElementById('listWrap');
   if(!wrap)return;
   const me_=me();
@@ -2670,54 +2705,16 @@ function onListEntryClick(ev,id,cat,date){
   ev.stopPropagation();
   const row=document.getElementById('list-entry-'+id);
   if(!row)return;
-  // Replace the row with an inline editor in compact form
-  startListInlineEdit(row,id);
+  if(selEntries.size)clearSel();
+  openCellEditor(row,{mode:'edit',id});
 }
 
-function startListInlineEdit(rowEl,id){
-  if(!rowEl||rowEl.dataset.editing==='1')return;
-  const tx=entries.find(e=>e.id===id);
-  if(!tx)return;
-  rowEl.dataset.editing='1';
-  const isInt=tx.amount%1===0;
-  const valStr=isInt?String(tx.amount):tx.amount.toFixed(2);
-  const day=parseInt(tx.date.slice(8,10),10);
-  const monthDays=new Date(cy,cm+1,0).getDate();
-  const leftDisabled=day<=1;
-  const rightDisabled=day>=monthDays;
-  const md='onmousedown="event.preventDefault()"';
-  rowEl.innerHTML=`<div class="list-edit-bar">
-    <button class="iebtn ie-arrow" ${leftDisabled?'disabled':''} ${md} title="Move to previous day" onclick="event.stopPropagation();shiftEntryDay(${id},-1)">‹</button>
-    <input type="number" step="0.01" min="0" value="${valStr}" id="iedit-${id}" class="list-edit-input">
-    <button class="iebtn ie-arrow" ${rightDisabled?'disabled':''} ${md} title="Move to next day" onclick="event.stopPropagation();shiftEntryDay(${id},1)">›</button>
-    <button class="iebtn ie-save" ${md} title="Save (Enter) — saving 0 deletes the entry" onclick="event.stopPropagation();commitInlineEdit(${id})">✓</button>
-    <button class="iebtn ie-del" ${md} title="Delete entry" onclick="event.stopPropagation();clearCell(${id})">🗑</button>
-    <button class="iebtn ie-cancel" ${md} title="Cancel (Esc)" onclick="event.stopPropagation();cancelInlineEdit(${id})">✕</button>
-  </div>`;
-  const inp=document.getElementById('iedit-'+id);
-  if(inp){
-    inp.focus();
-    inp.select();
-    inp.addEventListener('keydown',e=>{
-      if(e.key==='Enter'){e.preventDefault();commitInlineEdit(id);}
-      else if(e.key==='Escape'){e.preventDefault();cancelInlineEdit(id);}
-      else if(e.altKey&&e.key==='ArrowLeft'){e.preventDefault();shiftEntryDay(id,-1);}
-      else if(e.altKey&&e.key==='ArrowRight'){e.preventDefault();shiftEntryDay(id,1);}
-    });
-    inp.addEventListener('blur',()=>{
-      setTimeout(()=>{
-        const stillEditor=document.getElementById('iedit-'+id);
-        if(!stillEditor)return;
-        const active=document.activeElement;
-        if(active&&stillEditor.parentElement&&stillEditor.parentElement.contains(active))return;
-        cancelInlineEdit(id);
-      },120);
-    });
-  }
-}
+// v1.0.9: list rows use the same floating editor as the grid
+function startListInlineEdit(rowEl,id){openCellEditor(rowEl,{mode:'edit',id});}
 
 
 function renderSheet(){
+  closeCellEditor(); // any re-render detaches the cell the editor was anchored to
   const me_=me();
   const days=new Date(cy,cm+1,0).getDate();
   const DOW=['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -2827,7 +2824,7 @@ function renderSheet(){
       const ds=`${cy}-${String(cm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const ms=d===1,ws=!ms&&isWeekStart(d),tod=isToday(d);
       const dcls='dc'+(ms?' month-start':ws?' week-start':'')+(tod?' today-col':'');
-      s+=`<td class="${dcls}" style="background:${bg}" ondblclick="openAddModal('${escQ(cat.name)}','${ds}')" oncontextmenu="openCellCtx(event,'${escQ(cat.name)}',${d})">`;
+      s+=`<td class="${dcls}" style="background:${bg}" onclick="onCellBgClick(event,'${escQ(cat.name)}','${ds}')" oncontextmenu="openCellCtx(event,'${escQ(cat.name)}',${d})">`;
       if(de.length){
         s+='<div class="cstack">';
         de.forEach(tx=>{
@@ -2842,7 +2839,7 @@ function renderSheet(){
         });
         s+='</div>';
       } else {
-        s+=`<div class="cadd" onclick="openAddModal('${escQ(cat.name)}','${ds}')">+</div>`;
+        s+=`<div class="cadd">+</div>`;
       }
       s+='</td>';
     }
@@ -2963,157 +2960,227 @@ function buildSpanStyle(cs,type,scope){
 
 // ── Selection ──
 function handleCellClick(ev,id,cat,date){
+  closeCtx();
   if(ev.ctrlKey||ev.metaKey){
     ev.stopPropagation();
     if(selEntries.has(id))selEntries.delete(id);else selEntries.add(id);
-    renderSheet();updateSelBar();
+    ev.currentTarget.classList.toggle('sel',selEntries.has(id));
+    updateSelBar();
   } else if(ev.shiftKey){
     ev.stopPropagation();
     selEntries.add(id);
-    renderSheet();updateSelBar();
+    ev.currentTarget.classList.add('sel');
+    updateSelBar();
   } else {
-    // v1.0.4: left-click on existing data starts inline edit (was: day sidebar in v1.0.3)
     ev.stopPropagation();
-    startInlineEdit(ev.currentTarget,id);
+    if(selEntries.size)clearSel(); // a plain click replaces any multi-selection, spreadsheet-style
+    openCellEditor(ev.currentTarget,{mode:'edit',id});
   }
 }
+// v1.0.9: clicking an empty part of a day cell opens the in-cell "add" editor (was: Add modal)
+function onCellBgClick(ev,cat,date){
+  if(ev.target.closest('.ce'))return;
+  closeCtx();
+  if(selEntries.size)clearSel();
+  openCellEditor(ev.currentTarget,{mode:'add',cat,date});
+}
 
-// Inline edit on a cell — replaces the amount with an input + Save/Cancel
-function startInlineEdit(cellEl,id){
-  if(!cellEl||cellEl.dataset.editing==='1')return;
-  const tx=entries.find(e=>e.id===id);
-  if(!tx)return;
-  cellEl.dataset.editing='1';
-  const isInt=tx.amount%1===0;
-  const valStr=isInt?String(tx.amount):tx.amount.toFixed(2);
+// ── Floating cell editor (v1.0.9) ──
+// One editor at a time, attached to the clicked cell. Covers amount, status and note,
+// for both adding and editing — replaces the old amount-only editor and the modal for quick work.
+let _cellEd=null;        // {mode:'edit'|'add', id, cat, date, status, anchor}
+let _swallowClick=false; // Excel-style: the click that closes an editor doesn't also start something new
+let _ctxAnchorCell=null,_ctxAnchorTd=null;
 
-  // Day-shift arrow disable state based on month boundaries
-  const day=parseInt(tx.date.slice(8,10),10);
-  const monthDays=new Date(cy,cm+1,0).getDate();
-  const leftDisabled=day<=1;
-  const rightDisabled=day>=monthDays;
-
-  // v1.0.8: up/down move the entry to the adjacent category row of the same type
-  const upDisabled=!catNeighbor(tx,-1);
-  const downDisabled=!catNeighbor(tx,1);
-  // mousedown preventDefault keeps focus in the input, so clicking a button never triggers the blur-cancel
-  const md='onmousedown="event.preventDefault()"';
-
-  // v1.0.8: ‹ ▴ [input] ▾ › [✓] [🗑] [✕]
-  cellEl.innerHTML=`
-    <div style="display:flex;align-items:center;gap:1px;padding:2px 2px;background:var(--surface);border:2px solid var(--blue);border-radius:3px">
-      <button class="iebtn ie-arrow" ${leftDisabled?'disabled':''} ${md} title="Move to previous day (Alt+←)" onclick="event.stopPropagation();shiftEntryDay(${id},-1)">‹</button>
-      <button class="iebtn ie-arrow" ${upDisabled?'disabled':''} ${md} title="Move to category above (Alt+↑)" onclick="event.stopPropagation();shiftEntryCat(${id},-1)">▴</button>
-      <input type="number" step="0.01" min="0" value="${valStr}" id="iedit-${id}"
-        style="width:100%;min-width:36px;font:inherit;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:14.7px;border:none;outline:none;background:transparent;padding:1px 2px;text-align:right">
-      <button class="iebtn ie-arrow" ${downDisabled?'disabled':''} ${md} title="Move to category below (Alt+↓)" onclick="event.stopPropagation();shiftEntryCat(${id},1)">▾</button>
-      <button class="iebtn ie-arrow" ${rightDisabled?'disabled':''} ${md} title="Move to next day (Alt+→)" onclick="event.stopPropagation();shiftEntryDay(${id},1)">›</button>
-      <button class="iebtn ie-save" ${md} title="Save (Enter) — saving 0 deletes the entry" onclick="event.stopPropagation();commitInlineEdit(${id})">✓</button>
-      <button class="iebtn ie-del" ${md} title="Delete entry" onclick="event.stopPropagation();clearCell(${id})">🗑</button>
-      <button class="iebtn ie-cancel" ${md} title="Cancel (Esc)" onclick="event.stopPropagation();cancelInlineEdit(${id})">✕</button>
+function openCellEditor(anchor,opts){
+  closeCellEditor();
+  closeCtx();
+  if(!anchor)return;
+  let tx=null,cat,date,status,note='',amt='';
+  if(opts.mode==='edit'){
+    tx=entries.find(e=>e.id===opts.id);
+    if(!tx)return;
+    cat=tx.category;date=tx.date;status=tx.status;note=tx.note||'';
+    amt=tx.amount%1===0?String(tx.amount):tx.amount.toFixed(2);
+  } else {
+    cat=opts.cat;date=opts.date;status='confirmed';
+    if(!cat||!date)return;
+  }
+  _cellEd={mode:opts.mode,id:tx?tx.id:null,cat,date,status,anchor};
+  anchor.classList.add('ce-anchor');
+  const d=new Date(date+'T00:00:00');
+  const dayLbl=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3);
+  const md='onmousedown="event.preventDefault()"'; // keeps focus in the field you're typing in
+  const amtId=tx?'iedit-'+tx.id:'iedit-new';
+  let left='',right='';
+  if(tx){
+    const day=d.getDate(),monthDays=new Date(cy,cm+1,0).getDate();
+    left=`<button class="iebtn ie-arrow" ${day<=1?'disabled':''} ${md} title="Previous day (Alt+←)" onclick="shiftEntryDay(${tx.id},-1)">‹</button><button class="iebtn ie-arrow" ${catNeighbor(tx,-1)?'':'disabled'} ${md} title="Category above (Alt+↑)" onclick="shiftEntryCat(${tx.id},-1)">▴</button>`;
+    right=`<button class="iebtn ie-arrow" ${catNeighbor(tx,1)?'':'disabled'} ${md} title="Category below (Alt+↓)" onclick="shiftEntryCat(${tx.id},1)">▾</button><button class="iebtn ie-arrow" ${day>=monthDays?'disabled':''} ${md} title="Next day (Alt+→)" onclick="shiftEntryDay(${tx.id},1)">›</button>`;
+  }
+  const box=document.getElementById('cellEditor');
+  box.innerHTML=`
+    <div class="ced-hdr"><span class="ced-cat">${tx?'':'<span class="ced-new">New</span>'}${_escHTML(cat)}</span><span class="ced-date">${dayLbl}</span></div>
+    <div class="ced-row">${left}<input type="number" step="0.01" min="0" inputmode="decimal" id="${amtId}" class="ced-amt" value="${amt}" placeholder="0.00">${right}</div>
+    <div class="tgg ced-stat">
+      <button class="to${status==='confirmed'?' active':''}" data-s="confirmed" ${md} onclick="cedSetStatus('confirmed')">Confirmed</button>
+      <button class="to${status==='forecast'?' active':''}" data-s="forecast" ${md} onclick="cedSetStatus('forecast')">Forecast</button>
     </div>
-  `;
-  const inp=document.getElementById('iedit-'+id);
-  if(inp){
-    inp.focus();
-    inp.select();
-    inp.addEventListener('keydown',e=>{
-      if(e.key==='Enter'){e.preventDefault();commitInlineEdit(id);}
-      else if(e.key==='Escape'){e.preventDefault();cancelInlineEdit(id);}
-      else if(e.altKey&&e.key==='ArrowLeft'){e.preventDefault();shiftEntryDay(id,-1);}
-      else if(e.altKey&&e.key==='ArrowRight'){e.preventDefault();shiftEntryDay(id,1);}
-      else if(e.altKey&&e.key==='ArrowUp'){e.preventDefault();shiftEntryCat(id,-1);}
-      else if(e.altKey&&e.key==='ArrowDown'){e.preventDefault();shiftEntryCat(id,1);}
-    });
-    // Click outside cancels — but ignore blur when focus is moving to another element inside our editor
-    inp.addEventListener('blur',()=>{
-      setTimeout(()=>{
-        // If the editor div is still there but focus is on one of our own buttons, leave it alone
-        const stillEditor=document.getElementById('iedit-'+id);
-        if(!stillEditor)return;
-        const active=document.activeElement;
-        if(active&&stillEditor.parentElement&&stillEditor.parentElement.contains(active))return;
-        cancelInlineEdit(id);
-      },120);
-    });
-  }
+    <input type="text" id="ceNote" class="ced-note" placeholder="Note (optional)" value="${_escHTML(note)}">
+    <div class="ced-actions">
+      ${tx?`<button class="btn btn-sm ced-del" ${md} title="Delete entry" onclick="cedDelete()">🗑</button>`:''}
+      <span style="flex:1"></span>
+      <button class="btn btn-sm" ${md} title="Cancel (Esc)" onclick="closeCellEditor()">Cancel</button>
+      <button class="btn btn-sm btn-p" ${md} title="${tx?'Save (Enter) — saving 0 deletes the entry':'Add (Enter)'}" onclick="saveCellEditor()">${tx?'Save':'Add'}</button>
+    </div>`;
+  box.classList.remove('hidden');
+  positionCellEditor();
+  const inp=document.getElementById(amtId);
+  if(inp){inp.focus();inp.select();}
 }
-
-async function commitInlineEdit(id){
-  const inp=document.getElementById('iedit-'+id);
-  if(!inp)return;
-  const raw=inp.value.trim();
+function cedSetStatus(s){
+  if(!_cellEd)return;
+  _cellEd.status=s;
+  document.querySelectorAll('#cellEditor .ced-stat .to').forEach(b=>b.classList.toggle('active',b.dataset.s===s));
+}
+function closeCellEditor(){
+  const box=document.getElementById('cellEditor');
+  if(box){box.classList.add('hidden');box.innerHTML='';}
+  if(_cellEd&&_cellEd.anchor)_cellEd.anchor.classList.remove('ce-anchor');
+  _cellEd=null;
+}
+function positionCellEditor(){
+  const box=document.getElementById('cellEditor');
+  if(!_cellEd||!box)return;
+  const a=_cellEd.anchor;
+  if(!a||!document.body.contains(a)){closeCellEditor();return;}
+  const r=a.getBoundingClientRect(),bw=box.offsetWidth,bh=box.offsetHeight;
+  let left=r.left;
+  if(left+bw>window.innerWidth-8)left=Math.max(8,window.innerWidth-8-bw);
+  let top=r.bottom+4;
+  if(top+bh>window.innerHeight-8)top=Math.max(8,r.top-bh-4);
+  box.style.left=left+'px';box.style.top=top+'px';
+}
+// Edits typed into the open editor (amount/status/note) that differ from the saved entry
+function _pendingEdits(tx){
+  const out={};
+  if(!_cellEd||_cellEd.mode!=='edit'||_cellEd.id!==tx.id)return out;
+  const v=parseFloat(document.getElementById('iedit-'+tx.id)?.value);
+  if(!isNaN(v)&&v>0&&Math.abs(v-tx.amount)>=0.005)out.amount=v;
+  if(_cellEd.status!==tx.status)out.status=_cellEd.status;
+  const note=(document.getElementById('ceNote')?.value||'').trim();
+  if(note!==(tx.note||''))out.note=note;
+  return out;
+}
+function _describeEdits(tx,p){
+  const parts=[];
+  if('amount' in p)parts.push(`£${tx.amount} → £${p.amount}`);
+  if('status' in p)parts.push(`status: ${tx.status} → ${p.status}`);
+  if('note' in p)parts.push('note changed');
+  return parts;
+}
+async function saveCellEditor(){
+  const ed=_cellEd;if(!ed)return;
+  const inp=document.getElementById(ed.mode==='edit'?'iedit-'+ed.id:'iedit-new');
+  const raw=(inp?.value||'').trim();
   const val=parseFloat(raw);
-  // v1.0.8: saving 0 deletes the entry (undoable via clearCell's pushUndo)
-  if(raw!==''&&val===0){await clearCell(id);return;}
-  if(isNaN(val)||val<0){
-    cancelInlineEdit(id);
+  const bad=()=>{if(inp){inp.classList.add('invalid');inp.focus();}};
+  if(ed.mode==='add'){
+    if(isNaN(val)||val<=0){bad();return;}
+    const note=(document.getElementById('ceNote')?.value||'').trim();
+    const catObj=gc(ed.cat);
+    const ne={id:Date.now(),type:catObj?catObj.type:'spend',category:ed.cat,amount:val,date:ed.date,status:ed.status,note};
+    closeCellEditor();
+    pushUndo();
+    entries.push(ne);
+    logAction('added',ne);
+    await saveE(ne);
+    renderAll();refreshSB();
     return;
   }
-  const tx=entries.find(e=>e.id===id);
-  if(!tx){cancelInlineEdit(id);return;}
-  const old=tx.amount;
-  if(Math.abs(old-val)<0.005){cancelInlineEdit(id);return;}
+  const tx=entries.find(e=>e.id===ed.id);
+  if(!tx){closeCellEditor();return;}
+  if(raw!==''&&val===0){closeCellEditor();await clearCell(tx.id);return;} // saving 0 deletes
+  if(isNaN(val)||val<0){bad();return;}
+  const p=_pendingEdits(tx);
+  closeCellEditor();
+  if(!Object.keys(p).length)return;
   pushUndo();
-  tx.amount=val;
-  logAction('edited',tx,`was £${old}`);
-  await saveE();
-  renderAll();
-  refreshSB();
+  const desc=_describeEdits(tx,p);
+  Object.assign(tx,p);
+  logAction('edited',tx,desc.join(', '));
+  await saveE(tx);
+  renderAll();refreshSB();
 }
+async function cedDelete(){
+  if(!_cellEd||_cellEd.mode!=='edit')return;
+  const id=_cellEd.id;
+  closeCellEditor();
+  await clearCell(id);
+}
+// Keep old names working for any remaining callers
+function startInlineEdit(cellEl,id){openCellEditor(cellEl,{mode:'edit',id});}
+async function commitInlineEdit(){await saveCellEditor();}
+function cancelInlineEdit(){closeCellEditor();}
 
-// v1.0.5: shift an entry's date by ±1 day. Stays within current month.
-// Saves any pending typed amount before shifting, re-renders, and reopens the editor on the new cell.
+// Keyboard inside the editor: Enter saves, Esc cancels, Alt+arrows move the entry
+document.getElementById('cellEditor').addEventListener('keydown',e=>{
+  if(!_cellEd)return;
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(e.key==='Enter'&&tag==='input'){e.preventDefault();e.stopPropagation();saveCellEditor();}
+  else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeCellEditor();}
+  else if(e.altKey&&_cellEd.mode==='edit'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+    e.preventDefault();e.stopPropagation();
+    const id=_cellEd.id;
+    if(e.key==='ArrowLeft')shiftEntryDay(id,-1);
+    else if(e.key==='ArrowRight')shiftEntryDay(id,1);
+    else if(e.key==='ArrowUp')shiftEntryCat(id,-1);
+    else shiftEntryCat(id,1);
+  }
+});
+document.getElementById('cellEditor').addEventListener('input',e=>{if(e.target.classList)e.target.classList.remove('invalid');});
+// Click outside the editor: close it (no save). If that click landed on the grid, list or
+// side panel, it does nothing else — the next click works normally.
+document.addEventListener('pointerdown',e=>{
+  if(!_cellEd)return;
+  const box=document.getElementById('cellEditor');
+  if(box&&box.contains(e.target))return;
+  closeCellEditor();
+  if(e.button===0&&e.target.closest&&e.target.closest('#stbl,#listWrap,#sidebar')){
+    _swallowClick=true;
+    setTimeout(()=>{_swallowClick=false;},700);
+  }
+},true);
+document.addEventListener('click',e=>{
+  if(!_swallowClick)return;
+  _swallowClick=false;
+  e.stopPropagation();e.preventDefault();
+},true);
+document.addEventListener('scroll',()=>{if(_cellEd)positionCellEditor();},true);
+window.addEventListener('resize',()=>{if(_cellEd)positionCellEditor();});
+
+// v1.0.5/v1.0.8: move an entry by a day or to the neighbouring category; any pending edits
+// typed into the editor are carried along, then the editor reopens on the entry's new cell.
 async function shiftEntryDay(id,delta){
   const tx=entries.find(e=>e.id===id);
   if(!tx)return;
   const day=parseInt(tx.date.slice(8,10),10);
   const monthDays=new Date(cy,cm+1,0).getDate();
   const newDay=day+delta;
-  if(newDay<1||newDay>monthDays)return; // month boundary — do nothing
-
-  // Capture any unsaved amount from the input so the user's typing isn't lost
-  const inp=document.getElementById('iedit-'+id);
-  let typedAmount=null;
-  if(inp){
-    const v=parseFloat(inp.value);
-    if(!isNaN(v)&&v>0&&Math.abs(v-tx.amount)>=0.005)typedAmount=v;
-  }
-
+  if(newDay<1||newDay>monthDays)return; // stays within the month
+  const p=_pendingEdits(tx);
+  const desc=_describeEdits(tx,p);
   pushUndo();
   const oldDate=tx.date;
+  Object.assign(tx,p);
   tx.date=`${cy}-${String(cm+1).padStart(2,'0')}-${String(newDay).padStart(2,'0')}`;
-  if(typedAmount!=null){
-    const oldAmt=tx.amount;
-    tx.amount=typedAmount;
-    logAction('edited',tx,`${oldDate} £${oldAmt} → ${tx.date} £${typedAmount}`);
-  } else {
-    logAction('edited',tx,`date: ${oldDate} → ${tx.date}`);
-  }
-  await saveE();
+  logAction('edited',tx,[`date: ${oldDate} → ${tx.date}`,...desc].join(', '));
+  await saveE(tx);
   renderAll();
   refreshSB();
-
-  // Reopen the inline editor on the entry's new cell so user can keep arrowing
-  setTimeout(()=>{
-    if(viewMode==='list'){
-      const row=document.getElementById('list-entry-'+id);
-      if(row)startListInlineEdit(row,id);
-      return;
-    }
-    // Grid: find the new .ce element by walking the rendered DOM
-    const cells=document.querySelectorAll('#stbl .ce');
-    for(const c of cells){
-      const ck=c.getAttribute('onclick')||'';
-      if(ck.includes(`,${id},`)){
-        startInlineEdit(c,id);
-        return;
-      }
-    }
-  },30);
+  _reopenInlineEditor(id);
 }
-
-// v1.0.8: adjacent visible category of the same type (income↔income, spend↔spend), or null
+// Adjacent visible category of the same type (income↔income, spend↔spend), or null
 function catNeighbor(tx,dir){
   if(!tx)return null;
   const list=visibleCats().filter(c=>c.type===tx.type);
@@ -3122,51 +3189,36 @@ function catNeighbor(tx,dir){
   const t=list[idx+dir];
   return t?t.name:null;
 }
-function _readTypedAmount(id,tx){
-  const inp=document.getElementById('iedit-'+id);
-  if(!inp)return null;
-  const v=parseFloat(inp.value);
-  return(!isNaN(v)&&v>0&&Math.abs(v-tx.amount)>=0.005)?v:null;
-}
-function _reopenInlineEditor(id){
-  setTimeout(()=>{
-    if(viewMode==='list'){
-      const row=document.getElementById('list-entry-'+id);
-      if(row)startListInlineEdit(row,id);
-      return;
-    }
-    for(const c of document.querySelectorAll('#stbl .ce')){
-      if((c.getAttribute('onclick')||'').includes(`,${id},`)){startInlineEdit(c,id);return;}
-    }
-  },30);
-}
-// v1.0.8: move an entry to the category row above (-1) / below (+1), same type only
 async function shiftEntryCat(id,dir){
   const tx=entries.find(e=>e.id===id);
   if(!tx)return;
   const target=catNeighbor(tx,dir);
   if(!target)return;
-  const typedAmount=_readTypedAmount(id,tx);
+  const p=_pendingEdits(tx);
+  const desc=_describeEdits(tx,p);
   pushUndo();
   const oldCat=tx.category;
+  Object.assign(tx,p);
   tx.category=target;
-  if(typedAmount!=null){
-    const oldAmt=tx.amount;
-    tx.amount=typedAmount;
-    logAction('edited',tx,`${oldCat} £${oldAmt} → ${target} £${typedAmount}`);
-  } else {
-    logAction('edited',tx,`category: ${oldCat} → ${target}`);
-  }
+  logAction('edited',tx,[`category: ${oldCat} → ${target}`,...desc].join(', '));
   await saveE(tx);
   renderAll();
   refreshSB();
   _reopenInlineEditor(id);
 }
-
-function cancelInlineEdit(id){
-  if(viewMode==='list')renderList();
-  else renderSheet();
+function _reopenInlineEditor(id){
+  setTimeout(()=>{
+    if(viewMode==='list'){
+      const row=document.getElementById('list-entry-'+id);
+      if(row)openCellEditor(row,{mode:'edit',id});
+      return;
+    }
+    for(const c of document.querySelectorAll('#stbl .ce')){
+      if((c.getAttribute('onclick')||'').includes(`,${id},`)){openCellEditor(c,{mode:'edit',id});return;}
+    }
+  },30);
 }
+
 function updateSelBar(){
   const sb=document.getElementById('selbar');
   if(!selEntries.size){sb.classList.remove('show');return;}
@@ -3176,7 +3228,11 @@ function updateSelBar(){
   sb.innerHTML=`<span>${vals.length} selected  ·  Sum: £${sum.toFixed(2)}  ·  Avg: £${avg.toFixed(2)}</span><button class="selbar-del" onclick="event.stopPropagation();deleteSelectedEntries()" title="Delete selected (Del)">🗑 Delete</button>`;
   sb.classList.add('show');
 }
-function clearSel(){selEntries.clear();updateSelBar();}
+function clearSel(){
+  const had=selEntries.size;
+  selEntries.clear();updateSelBar();
+  if(had)document.querySelectorAll('#stbl .ce.sel').forEach(el=>el.classList.remove('sel'));
+}
 // v1.0.8: delete every Ctrl/Shift-selected entry in one undoable step
 async function deleteSelectedEntries(){
   const ids=[...selEntries].filter(id=>entries.some(e=>e.id===id));
@@ -3196,9 +3252,7 @@ document.addEventListener('click',e=>{
   if(!e.ctrlKey&&!e.metaKey&&!e.shiftKey){
     if(!e.target.closest('.ce')&&!e.target.closest('.ctx')&&!e.target.closest('#selbar')){
       // (fixed in v1.0.8: highlight now actually clears — size was checked after clearing before)
-      const had=selEntries.size;
-      clearSel();
-      if(had&&viewMode==='grid')renderSheet();
+      if(selEntries.size)clearSel();
     }
   }
 });
@@ -3228,6 +3282,8 @@ function openCatCtx(ev,catName){
 
 function openCellCtx(ev,catName,day,txId){
   ev.preventDefault();ev.stopPropagation();
+  _ctxAnchorCell=ev.currentTarget;
+  _ctxAnchorTd=(ev.currentTarget.closest&&ev.currentTarget.closest('td'))||ev.currentTarget;
   const m=document.getElementById('ctx');
   m.classList.remove('hidden');
   m.style.left=Math.min(ev.clientX,window.innerWidth-230)+'px';
@@ -3244,8 +3300,8 @@ function openCellCtx(ev,catName,day,txId){
       ?`<div class="cxi" onclick="closeCtx();deleteSelectedEntries()" style="color:var(--red);font-weight:500">🗑 Delete ${selEntries.size} selected</div><div class="cxsep"></div>`:'';
     m.innerHTML=bulk+`
       <div class="cxi" onclick="closeCtx();clearCell(${txId})"><span style="color:var(--red);font-weight:600;width:14px;display:inline-block;text-align:center">✕</span> Delete</div>
-      <div class="cxi" onclick="closeCtx();openAddModal('${escQ(catName)}','${ds}')"><span style="color:var(--green);font-weight:600;width:14px;display:inline-block;text-align:center">+</span> Add</div>
-      <div class="cxi" onclick="closeCtx();openCellModal(${txId},'${escQ(catName)}','${ds}')">✏️ Edit</div>
+      <div class="cxi" onclick="closeCtx();openCellEditor(_ctxAnchorTd,{mode:'add',cat:'${escQ(catName)}',date:'${ds}'})"><span style="color:var(--green);font-weight:600;width:14px;display:inline-block;text-align:center">+</span> Add</div>
+      <div class="cxi" onclick="closeCtx();openCellEditor(_ctxAnchorCell,{mode:'edit',id:${txId}})">✏️ Edit</div>
       <div class="cxi" onclick="closeCtx();toggleStatus(${txId})">${toggleLabel}</div>
       <div class="cxsep"></div>
       <div class="cxi" onclick="event.stopPropagation();clearCS(${txId})">🧹 Clear formatting</div>
@@ -3262,7 +3318,7 @@ function openCellCtx(ev,catName,day,txId){
       </div>`;
   } else {
     m.innerHTML=`
-      <div class="cxi" onclick="closeCtx();openAddModal('${escQ(catName)}','${ds}')"><span style="color:var(--green);font-weight:600;width:14px;display:inline-block;text-align:center">+</span> Add entry here</div>`;
+      <div class="cxi" onclick="closeCtx();openCellEditor(_ctxAnchorTd,{mode:'add',cat:'${escQ(catName)}',date:'${ds}'})"><span style="color:var(--green);font-weight:600;width:14px;display:inline-block;text-align:center">+</span> Add entry here</div>`;
   }
 }
 
@@ -3285,7 +3341,12 @@ async function clearCS(id){
 function closeCtx(){document.getElementById('ctx').classList.add('hidden');}
 document.addEventListener('click',e=>{if(!e.target.closest('.ctx'))closeCtx();});
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){closeModal();closeSB();closeCtx();clearSel();}
+  // v1.0.9: Esc peels back one layer at a time — editor, then selection, then panels
+  if(e.key==='Escape'){
+    if(_cellEd){closeCellEditor();return;}
+    if(selEntries.size){clearSel();return;}
+    closeModal();closeSB();closeCtx();
+  }
   if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
   if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo();}
   // v1.0.8: Delete/Backspace removes the multi-selection (ignored while typing anywhere)
@@ -3433,7 +3494,7 @@ function renderSBEntries(list,catName){
   if(!list.length)return'<p style="color:var(--text3);font-size:13px;padding:4px 0">No entries.</p>';
   return list.map(e=>{
     const d=new Date(e.date+'T00:00:00');
-    return`<div class="ecard" onclick="openCellModal(${e.id},'${escQ(catName)}','${e.date}')">
+    return`<div class="ecard" onclick="openCellEditor(this,{mode:'edit',id:${e.id}})">
       <div class="ecmeta">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <span style="font-weight:500;font-size:12px">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}</span>
@@ -3470,13 +3531,59 @@ function buildSBSum(list){
   </div>`;
 }
 
-// Full-month, single-category view
+// v1.0.9: Mon–Sun weeks within the month, clipped at the month edges
+function weeksOfMonth(y,m){
+  const days=new Date(y,m+1,0).getDate(),out=[];
+  let start=1;
+  while(start<=days){
+    const dow=new Date(y,m,start).getDay();      // 0=Sun … 6=Sat
+    const end=Math.min(days,start+((7-dow)%7));   // run to the coming Sunday
+    out.push({start,end});
+    start=end+1;
+  }
+  return out;
+}
+let _sbWeeksOpen=new Set(),_sbWeeksKey='';
+function toggleSBWeek(start){
+  if(_sbWeeksOpen.has(start))_sbWeeksOpen.delete(start);else _sbWeeksOpen.add(start);
+  refreshSB();
+}
+// Full-month, single-category view — weekly totals, entries collapsed under each week
 function openCatSB(catName){
+  const key=catName+'|'+cy+'-'+cm;
+  if(key!==_sbWeeksKey){_sbWeeksKey=key;_sbWeeksOpen=new Set();}
   sbState={mode:'cat',catName};
-  const me_=me().filter(e=>e.category===catName).sort((a,b)=>a.date.localeCompare(b.date));
+  const list=me().filter(e=>e.category===catName).sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+  const cat=gc(catName);
+  const col=cat?.type==='income'?'var(--green)':cat?.scope==='personal'?'var(--red)':'var(--shared-spend)';
+  const weeks=weeksOfMonth(cy,cm);
+  const mon=MONTHS[cm].slice(0,3);
+  const isCurMonth=cy===todayYear&&cm===todayMonth;
+  const groups=weeks.map(w=>list.filter(e=>{const d=parseInt(e.date.slice(8,10),10);return d>=w.start&&d<=w.end;}));
+  const sums=groups.map(g=>g.reduce((s,e)=>s+e.amount,0));
+  const maxS=Math.max(0,...sums);
+  let html='';
+  weeks.forEach((w,i)=>{
+    const g=groups[i],sum=sums[i],n=w.end-w.start+1,open=_sbWeeksOpen.has(w.start);
+    const cur=isCurMonth&&todayDay>=w.start&&todayDay<=w.end;
+    const fc=g.filter(e=>e.status==='forecast').length;
+    const range=w.start===w.end?`${w.start} ${mon}`:`${w.start} to ${w.end} ${mon}`;
+    const pct=maxS>0?Math.round(sum/maxS*100):0;
+    html+=`<div class="wk${open?' open':''}${cur?' cur':''}">
+      <div class="wk-hdr" onclick="toggleSBWeek(${w.start})">
+        <span class="wk-chev">${open?'▾':'▸'}</span>
+        <div class="wk-main">
+          <div class="wk-lbl"><b>W${i+1}</b>: ${range}, ${n} ${n===1?'day':'days'}${cur?'<span class="wk-now">now</span>':''}</div>
+          <div class="wk-bar"><div style="width:${pct}%;background:${col}"></div></div>
+        </div>
+        <div class="wk-tot"><div style="color:${sum?col:'var(--text3)'}">${fmt(sum)}</div><div class="wk-cnt">${g.length} ${g.length===1?'entry':'entries'}${fc?` · ${fc} fcst`:''}</div></div>
+      </div>
+      ${open?`<div class="wk-body">${g.length?renderSBEntries(g,catName):'<p class="wk-empty">No entries this week.</p>'}</div>`:''}
+    </div>`;
+  });
   document.getElementById('sidebar').classList.remove('hidden');
   document.querySelector('#sidebar .sbh').innerHTML=buildSBHeader(catName,`openAddModal('${escQ(catName)}','')`);
-  document.getElementById('sbBody').innerHTML=buildSBSum(me_)+'<div style="padding:14px">'+renderSBEntries(me_,catName)+'</div>';
+  document.getElementById('sbBody').innerHTML=buildSBSum(list)+'<div style="padding:12px 12px 14px">'+html+'</div>';
   document.getElementById('sbFoot').innerHTML='';
 }
 
